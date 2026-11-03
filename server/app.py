@@ -21,6 +21,8 @@ def run_job(job, kind, payload, extra_text=""):
     step = lambda s: _set(job, step=s)
     try:
         provider = ai.get_provider()
+        provider.step = step
+        warning = ""
         if kind == "text":
             url = fetcher.find_url(payload)
             only_url = url and len(payload.strip()) <= len(url) + 40
@@ -46,10 +48,14 @@ def run_job(job, kind, payload, extra_text=""):
                 res = provider.from_text(media["caption"])
             if not res["title"]:
                 res["title"] = (media.get("title") or "")[:80]
+            warning = media.get("warning", "")
         if not res["items"]:
             raise ai.AIError("Kono movie/tool er nam pawa gelo na.")
         rid = db.add(kind, source, res["title"] or "Untitled list", res["items"], provider.name)
-        _set(job, status="done", step="Done", result=db.get(rid))
+        result = db.get(rid)
+        if warning:
+            result["warning"] = warning
+        _set(job, status="done", step="Done", result=result)
     except (ai.AIError, fetcher.FetchError) as e:
         _set(job, status="error", error=str(e))
     except Exception as e:  # noqa

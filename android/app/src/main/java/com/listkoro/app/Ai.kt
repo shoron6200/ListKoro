@@ -19,6 +19,8 @@ class ListResult(var title: String, val items: JSONArray)
 
 interface Provider {
     val name: String
+    /** UI te progress message ("Gemini busy, onno model…") */
+    var step: (String) -> Unit
     fun fromText(text: String): ListResult
     fun fromImages(files: List<File>, context: String): ListResult
     fun fromVideo(file: File, context: String, audioOnly: Boolean): ListResult
@@ -119,7 +121,8 @@ private val JSON = "application/json; charset=utf-8".toMediaType()
 
 // ------------------------------------------------------------------ Gemini (free tier)
 class Gemini : Provider {
-    override val name = "gemini"
+    override var name = "gemini"
+    override var step: (String) -> Unit = {}
     private val base = "https://generativelanguage.googleapis.com"
     private val key = Store.get("gemini_key")
     private val model = Store.get("gemini_model")
@@ -128,28 +131,78 @@ class Gemini : Provider {
         if (key.isBlank()) throw AiError("Gemini API key nai. Settings e key dao (free: aistudio.google.com/apikey)")
     }
 
+    companion object {
+        private val BUSY = setOf(429, 500, 502, 503, 504)
+        private val FALLBACK = listOf("gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite")
+        private val cache = HashMap<String, List<String>>()
+    }
+
+    /** Configured model age, tarpor onno flash model (busy hole fallback). */
+    private fun candidates(): List<String> {
+        val list = synchronized(cache) { cache[key] } ?: run {
+            val found = ArrayList<String>()
+            try {
+                val req = Request.Builder().url("$base/v1beta/models?pageSize=200").header("x-goog-api-key", key).build()
+                Ai.http.newCall(req).execute().use { r ->
+                    if (r.isSuccessful) {
+                        val models = JSONObject(r.body?.string() ?: "{}").optJSONArray("models") ?: JSONArray()
+                        for (i in 0 until models.length()) {
+                            val m = models.getJSONObject(i)
+                            val n = m.optString("name").removePrefix("models/")
+                            val methods = m.optJSONArray("supportedGenerationMethods")?.toString() ?: ""
+                            if ("generateContent" in methods && "flash" in n &&
+                                !Regex("image|tts|live|audio|embed|thinking|native").containsMatchIn(n)) found += n
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+            val ranked = found.distinct().sortedWith(compareBy<String>(
+                { it.contains("preview") || it.contains("exp") },
+                { it.contains("lite") },
+                { n -> -(if (n.endsWith("-latest")) 99.0 else Regex("gemini-(\\d+(?:\\.\\d+)?)").find(n)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0) },
+                { it }))
+            (ranked.ifEmpty { FALLBACK }).also { synchronized(cache) { cache[key] = it } }
+        }
+        return (listOf(model) + list).distinct().take(4)
+    }
+
     private fun generate(parts: JSONArray): ListResult {
         val body = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", Ai.PROMPT))))
             .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", parts)))
             .put("generationConfig", JSONObject().put("responseMimeType", "application/json").put("temperature", 0.2))
-        val req = Request.Builder().url("$base/v1beta/models/$model:generateContent")
-            .header("x-goog-api-key", key).post(body.toString().toRequestBody(JSON)).build()
-        var code = 0
-        var text = ""
-        for (attempt in 0 until 3) {
-            Ai.http.newCall(req).execute().use { r -> code = r.code; text = r.body?.string() ?: "" }
-            if ((code == 429 || code >= 500) && attempt < 2) { Thread.sleep(5000L * (attempt + 1)); continue }
-            break
+            .toString()
+        var lastCode = 0
+        for ((i, m) in candidates().withIndex()) {
+            if (i > 0) step("Gemini busy, onno model try korchi ($m)")
+            val req = Request.Builder().url("$base/v1beta/models/$m:generateContent")
+                .header("x-goog-api-key", key).post(body.toRequestBody(JSON)).build()
+            var code = 0
+            var text = ""
+            for (attempt in 0 until 3) {
+                Ai.http.newCall(req).execute().use { r -> code = r.code; text = r.body?.string() ?: "" }
+                if (code in BUSY && attempt < 2) {
+                    step("Gemini busy, abar try korchi (${attempt + 2}/3)")
+                    Thread.sleep(if (attempt == 0) 4000L else 10000L)
+                    continue
+                }
+                break
+            }
+            lastCode = code
+            if (code in BUSY || code == 404) continue  // busy / model nai -> porer model
+            if (code !in 200..299) throw AiError("Gemini error $code: ${text.take(300)}")
+            return try {
+                val p = JSONObject(text).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts")
+                Ai.parse((0 until p.length()).joinToString("") { p.getJSONObject(it).optString("text") }).also { name = "gemini:$m" }
+            } catch (e: JSONException) {
+                throw AiError("Gemini kono answer dey nai: ${text.take(300)}")
+            }
         }
-        if (code == 429) throw AiError("Gemini free limit shesh (429). Ektu pore try koro.")
-        if (code !in 200..299) throw AiError("Gemini error $code: ${text.take(300)}")
-        return try {
-            val p = JSONObject(text).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts")
-            Ai.parse((0 until p.length()).joinToString("") { p.getJSONObject(it).optString("text") })
-        } catch (e: JSONException) {
-            throw AiError("Gemini kono answer dey nai: ${text.take(300)}")
-        }
+        throw AiError(when (lastCode) {
+            429 -> "Gemini free limit shesh (429). 1-2 min por abar try koro."
+            404 -> "Gemini model pawa jay nai ($model). Settings e model name check koro."
+            else -> "Gemini ekhon khub busy (503). Sob model try korlam, 1-2 min por abar try koro."
+        })
     }
 
     private fun upload(f: File): JSONObject {
@@ -221,6 +274,7 @@ class Gemini : Provider {
 // ------------------------------------------------------------------ Ollama (PC te chole, phone theke LAN e)
 class Ollama : Provider {
     override val name = "ollama"
+    override var step: (String) -> Unit = {}
     private val host = Store.get("ollama_host").trimEnd('/')
     private val model = Store.get("ollama_model")
     private val vmodel = Store.get("ollama_vision_model")
@@ -259,6 +313,7 @@ class Ollama : Provider {
 // ------------------------------------------------------------------ Basic (AI chara, shudhu OCR)
 class Basic : Provider {
     override val name = "basic"
+    override var step: (String) -> Unit = {}
     private fun wrap(lines: List<String>, title: String) = ListResult(title, JSONArray().apply {
         Ocr.dedupe(lines).forEach { put(JSONObject().put("name", it).put("type", "other").put("year", "").put("note", "").put("timestamp", "")) }
     })

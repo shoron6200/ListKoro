@@ -67,6 +67,8 @@ function render(r){
   $("#resTitle").textContent = r.title || "List";
   const d = new Date(r.created*1000);
   $("#resMeta").textContent = `${r.items.length} ta item · ${r.provider} · ${d.toLocaleString()}`;
+  $("#resWarn").textContent = r.warning ? "⚠️ " + r.warning : "";
+  $("#resWarn").classList.toggle("hidden", !r.warning);
   $("#resList").innerHTML = r.items.map((it,i)=>`
     <li>
       <div class="it-name">${esc(it.name)}${it.year?` <span class="yr">(${esc(it.year)})</span>`:""}</div>

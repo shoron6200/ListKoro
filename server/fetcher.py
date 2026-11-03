@@ -9,6 +9,13 @@ import config
 URL_RE = re.compile(r"https?://[^\s<>\"']+")
 BROWSER_UA = ("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36")
+DESKTOP_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/130.0 Safari/537.36")
+# Ei link gula video: fail hole poster/thumbnail e chole jabo na
+VIDEO_RE = re.compile(r"facebook\.com/(reel|reels|watch|share/[vr])\b|facebook\.com/.+/videos?/|fb\.watch/|"
+                      r"instagram\.com/(reel|reels|tv)/|youtube\.com/(watch|shorts)|youtu\.be/|tiktok\.com/", re.I)
+SHORT_RE = re.compile(r"facebook\.com/share/|fb\.watch/|fb\.me/|l\.facebook\.com/", re.I)
+LOGIN_HINT = " Private/login-only video hole Settings e cookies.txt dao."
 
 
 class FetchError(Exception):
@@ -22,7 +29,32 @@ def find_url(text):
 
 def _short_err(e):
     msg = re.sub(r"\x1b\[[0-9;]*m", "", str(e)).split("; please report")[0]
-    return msg.replace("ERROR: ", "").strip()[-220:]
+    return msg.replace("ERROR: ", "").strip()[:220]
+
+
+def is_video_url(url):
+    return bool(VIDEO_RE.search(url or ""))
+
+
+def _desktop(url):
+    return re.sub(r"://(m|mbasic|web|touch)\.facebook\.com", "://www.facebook.com", url)
+
+
+def resolve_url(url):
+    """FB share/short link -> asol post URL (yt-dlp er jonno)."""
+    u = _desktop(url)
+    if not SHORT_RE.search(u):
+        return u
+    try:
+        r = requests.get(u, headers={"User-Agent": DESKTOP_UA, "Accept-Language": "en"}, cookies=_cookiejar(),
+                         timeout=20, allow_redirects=True, stream=True)
+        final = r.url
+        r.close()
+        if final and "login" not in final and "checkpoint" not in final:
+            return _desktop(final)
+    except requests.RequestException:
+        pass
+    return u
 
 
 def _cookie_opts():
@@ -52,8 +84,8 @@ def _caption(info):
 
 
 def _ydl_base(progress=None):
-    opts = {"quiet": True, "no_warnings": True, "noplaylist": False, "socket_timeout": 30,
-            "http_headers": {"User-Agent": BROWSER_UA}, **_cookie_opts()}
+    # User-Agent dei na: yt-dlp nijer desktop UA dey, FB extractor sei page e kaj kore
+    opts = {"quiet": True, "no_warnings": True, "noplaylist": False, "socket_timeout": 30, **_cookie_opts()}
     if progress:
         def hook(d):
             if d.get("status") == "downloading":
@@ -98,22 +130,30 @@ def _og_fallback(url, workdir):
 def fetch(url, workdir, progress=lambda s: None):
     """Return {kind: video|image|text, paths, caption, title}."""
     workdir = Path(workdir)
+    progress("Link check hocche")
+    original = url
+    url = resolve_url(url)
+    video_link = is_video_url(original) or is_video_url(url)
     progress("Post info ana hocche")
-    try:
-        with yt_dlp.YoutubeDL(_ydl_base()) as y:
-            info = y.extract_info(url, download=False)
-    except yt_dlp.utils.DownloadError as e:
-        info, err = None, _short_err(e)
-    else:
-        err = ""
+    info, err = None, ""
+    for u in dict.fromkeys([url, original]):  # resolved age, na hole original
+        try:
+            with yt_dlp.YoutubeDL(_ydl_base()) as y:
+                info = y.extract_info(u, download=False)
+            url = u
+            break
+        except yt_dlp.utils.DownloadError as e:
+            err = _short_err(e)
 
+    hint = LOGIN_HINT if not config.COOKIES.exists() else " Cookies expire hoye thakte pare, notun kore dao."
     if info is None:
+        if video_link:  # video link e thumbnail porle bhul list ashe, tai clear error
+            raise FetchError("Video download hoy nai." + hint + " (" + err + ")")
         progress("Video pawa jay nai, poster/image khujchi")
         res = _og_fallback(url, workdir)
         if res:
+            res["warning"] = "Video pawa jay nai, post er image/caption theke pora hoyeche."
             return res
-        hint = " Private post hole Settings e cookies.txt dao." if not config.COOKIES.exists() else \
-               " Cookies expire hoye thakte pare, notun kore export koro."
         raise FetchError("Link theke kichu ana gelo na." + hint + " Na hole screenshot upload koro. (" + err + ")")
 
     entries = [e for e in (info.get("entries") or [info]) if e]
@@ -133,8 +173,9 @@ def fetch(url, workdir, progress=lambda s: None):
             y.download([first.get("webpage_url") or url])
     except yt_dlp.utils.DownloadError as e:
         if caption:
-            return {"kind": "text", "paths": [], "caption": caption, "title": info.get("title", "")}
-        raise FetchError("Download fail: " + _short_err(e))
+            return {"kind": "text", "paths": [], "caption": caption, "title": info.get("title", ""),
+                    "warning": "Video download hoy nai (" + _short_err(e)[:120] + "), shudhu caption theke pora."}
+        raise FetchError("Download fail." + hint + " (" + _short_err(e) + ")")
     files = sorted(p for p in workdir.glob("media_*") if p.suffix not in (".part", ".ytdl"))
     if not files:
         raise FetchError("Download hoy nai")

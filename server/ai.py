@@ -83,30 +83,69 @@ class Gemini:
             raise AIError("Gemini API key nai. Settings e key dao (free: aistudio.google.com/apikey)")
         self.h = {"x-goog-api-key": self.key}
 
+    BUSY = (429, 500, 502, 503, 504)
+    FALLBACK = ["gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    _cache = {}
+
+    def _candidates(self):
+        """Configured model age, tarpor onno flash model (busy hole fallback)."""
+        if self.key not in Gemini._cache:
+            found = []
+            try:
+                r = requests.get(f"{self.BASE}/v1beta/models", headers=self.h, params={"pageSize": 200}, timeout=20)
+                if r.ok:
+                    for m in r.json().get("models", []):
+                        n = m.get("name", "").removeprefix("models/")
+                        if "generateContent" not in m.get("supportedGenerationMethods", []):
+                            continue
+                        if "flash" in n and not re.search(r"image|tts|live|audio|embed|thinking|native", n):
+                            found.append(n)
+            except (requests.RequestException, ValueError):
+                pass
+
+            def rank(n):
+                v = re.search(r"gemini-(\d+(?:\.\d+)?)", n)
+                ver = 99.0 if n.endswith("-latest") else float(v.group(1)) if v else 0.0
+                return ("preview" in n or "exp" in n, "lite" in n, -ver, n)
+            Gemini._cache[self.key] = sorted(set(found), key=rank) or list(self.FALLBACK)
+        return list(dict.fromkeys([self.model] + Gemini._cache[self.key]))[:4]
+
     def _generate(self, parts):
         body = {
             "systemInstruction": {"parts": [{"text": PROMPT}]},
             "contents": [{"role": "user", "parts": parts}],
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
         }
-        url = f"{self.BASE}/v1beta/models/{self.model}:generateContent"
-        for attempt in range(3):
-            r = requests.post(url, headers=self.h, json=body, timeout=300)
-            if r.status_code == 429 or r.status_code >= 500:
-                if attempt < 2:
-                    time.sleep(5 * (attempt + 1))
+        step = getattr(self, "step", None) or (lambda s: None)
+        last = None
+        for i, model in enumerate(self._candidates()):
+            if i:
+                step(f"Gemini busy, onno model try korchi ({model})")
+            url = f"{self.BASE}/v1beta/models/{model}:generateContent"
+            for attempt in range(3):
+                r = requests.post(url, headers=self.h, json=body, timeout=300)
+                if r.status_code in self.BUSY and attempt < 2:
+                    step(f"Gemini busy, abar try korchi ({attempt + 2}/3)")
+                    time.sleep((4, 10)[attempt])
                     continue
-            break
-        if r.status_code == 429:
-            raise AIError("Gemini free limit shesh (429). Ektu pore try koro.")
-        if not r.ok:
-            raise AIError(f"Gemini error {r.status_code}: {r.text[:300]}")
-        data = r.json()
-        try:
-            text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
-        except (KeyError, IndexError):
-            raise AIError("Gemini kono answer dey nai: " + json.dumps(data)[:300])
-        return parse_json(text)
+                break
+            last = r
+            if r.status_code in self.BUSY or r.status_code == 404:  # busy / model nai -> porer model
+                continue
+            if not r.ok:
+                raise AIError(f"Gemini error {r.status_code}: {r.text[:300]}")
+            data = r.json()
+            try:
+                text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
+            except (KeyError, IndexError):
+                raise AIError("Gemini kono answer dey nai: " + json.dumps(data)[:300])
+            self.name = f"gemini:{model}"
+            return parse_json(text)
+        if last is not None and last.status_code == 429:
+            raise AIError("Gemini free limit shesh (429). 1-2 min por abar try koro.")
+        if last is not None and last.status_code == 404:
+            raise AIError(f"Gemini model pawa jay nai ({self.model}). Settings e model name check koro.")
+        raise AIError("Gemini ekhon khub busy (503). Sob model try korlam, 1-2 min por abar try koro.")
 
     def _upload(self, path):
         path = Path(path)

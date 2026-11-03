@@ -1,6 +1,7 @@
 package com.listkoro.app
 
 import android.content.Context
+import com.yausername.youtubedl_android.YoutubeDL
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONObject
 import java.io.File
@@ -104,7 +105,7 @@ class LocalServer(private val ctx: Context, port: Int) : NanoHTTPD("127.0.0.1", 
             .put("ffmpeg", App.ytdlReady.count == 0L && App.ytdlError == null)
             .put("tesseract", true)
             .put("ocr_label", "ML Kit OCR")
-            .put("downloader_label", "yt-dlp")
+            .put("downloader_label", "yt-dlp " + (try { YoutubeDL.getInstance().version(ctx) ?: "" } catch (_: Exception) { "" }))
     }
 
     /** JSON body nijei UTF-8 e pori (Bangla text thik rakhte). */

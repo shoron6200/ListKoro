@@ -36,6 +36,8 @@ object Jobs {
         var payload = payloadIn
         try {
             val provider = Ai.provider()
+            provider.step = step
+            var warning = ""
             if (kind == "text") {
                 val url = Fetcher.findUrl(payload)
                 if (url != null && payload.trim().length <= url.length + 40) { kind = "url"; payload = url }
@@ -57,11 +59,14 @@ object Jobs {
                         else -> { step("AI caption porche"); provider.fromText(m.caption) }
                     }
                     if (res.title.isBlank()) res.title = m.title.take(80)
+                    warning = m.warning
                 }
             }
             if (res.items.length() == 0) throw AiError("Kono movie/tool er nam pawa gelo na.")
             val rid = Store.add(kind, source, res.title.ifBlank { "Untitled list" }, res.items, provider.name)
-            set(id, "status" to "done", "step" to "Done", "result" to Store.get(rid))
+            val result = Store.get(rid)
+            if (warning.isNotBlank()) result?.put("warning", warning)
+            set(id, "status" to "done", "step" to "Done", "result" to result)
         } catch (e: AiError) {
             set(id, "status" to "error", "error" to e.message)
         } catch (e: FetchError) {
