@@ -52,7 +52,7 @@ if [ $fail = 0 ]; then
   api -H 'content-type: application/json' -d '{"provider":"basic"}' localhost:$PORT/api/settings >/dev/null
   note "job: local mp4 (must download)"
   run_job "http://10.0.2.2:8077/sample.mp4" local
-  if grep -q "AI video dekhche\|^\[local\] done" "$OUT/steps-local.txt"; then
+  if grep -q "AI video dekhche" "$OUT/steps-local.txt"; then
     note "download OK"
     grep -q "^\[local\] done" "$OUT/steps-local.txt" && note "OCR result: $(jget "[x['name'] for x in d['result']['items']]" < "$OUT/job-local.json")"
   else

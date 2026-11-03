@@ -46,8 +46,15 @@ object Fetcher {
         }
     }
 
-    private fun loginHint() = if (Store.cookies.exists()) " Cookies expire hoye thakte pare: Settings → Facebook e login abar koro."
-                              else " Private/login-only video hote pare: Settings → Facebook e login koro."
+    private fun loginHint(url: String): String {
+        val site = when {
+            url.contains("instagram.com") -> "Instagram"
+            url.contains("facebook.com") || url.contains("fb.watch") || url.contains("fb.me") -> "Facebook"
+            else -> return " Link ta public kina check koro."
+        }
+        return if (Store.cookies.exists()) " Cookies expire hoye thakte pare: Settings → $site e login abar koro."
+               else " Private/login-only post hote pare: Settings → $site e login koro."
+    }
 
     fun findUrl(text: String?): String? = text?.let { URL_RE.find(it)?.value?.trimEnd(')', '.', ',') }
 
@@ -100,18 +107,20 @@ object Fetcher {
         }
         if (info == null) {
             // video link e thumbnail porle bhul list ashe, tai clear error
-            if (videoLink) throw FetchError("Video download hoy nai.${loginHint()} ($err)")
+            if (videoLink) throw FetchError("Video download hoy nai.${loginHint(original)} ($err)")
             step("Video pawa jay nai, poster/image khujchi")
             ogFallback(target, work)?.let { it.warning = "Video pawa jay nai, post er image/caption theke pora hoyeche."; return it }
-            throw FetchError("Link theke kichu ana gelo na.${loginHint()} Na hole screenshot Poster tab e dao. ($err)")
+            throw FetchError("Link theke kichu ana gelo na.${loginHint(original)} Na hole screenshot Poster tab e dao. ($err)")
         }
         val entries = info.optJSONArray("entries")
         val first = if (entries != null && entries.length() > 0) entries.optJSONObject(0) ?: info else info
         val cap = caption(info).ifEmpty { caption(first) }
         val duration = first.optDouble("duration", 0.0).let { if (it.isNaN()) 0.0 else it }
+        // vcodec na thakle (FB progressive / direct mp4) video dhore nei; shudhu sob format "none" hole audio-only
+        fun vcodec(o: JSONObject?) = o?.opt("vcodec")?.toString()?.takeIf { it.isNotBlank() && it != "null" }
         val formats = first.optJSONArray("formats") ?: JSONArray()
-        val hasVideo = (0 until formats.length()).any { formats.optJSONObject(it)?.optString("vcodec", "none") !in listOf("none", "", "null") } ||
-            first.optString("vcodec", "none") !in listOf("none", "", "null")
+        val fmts = (0 until formats.length()).mapNotNull { formats.optJSONObject(it) }
+        val hasVideo = if (fmts.isNotEmpty()) fmts.any { vcodec(it) != "none" } else vcodec(first) != "none"
         val longVideo = duration > MAX_VIDEO_SEC
         val audioOnly = longVideo || !hasVideo
 
@@ -135,7 +144,7 @@ object Fetcher {
         } catch (e: YoutubeDLException) {
             if (cap.isNotBlank()) return Media("text", emptyList(), cap, info.optString("title"),
                 warning = "Video download hoy nai (${shortErr(e).take(120)}), shudhu caption theke pora.")
-            throw FetchError("Download fail.${loginHint()} (${shortErr(e)})")
+            throw FetchError("Download fail.${loginHint(original)} (${shortErr(e)})")
         }
         val files = work.listFiles { f -> f.name.startsWith("media_") && !f.name.endsWith(".part") && !f.name.endsWith(".ytdl") }
             ?.sortedBy { it.name } ?: emptyList()

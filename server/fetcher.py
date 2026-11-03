@@ -160,7 +160,9 @@ def fetch(url, workdir, progress=lambda s: None):
     first = entries[0]
     caption = _caption(info) or _caption(first)
     duration = first.get("duration") or 0
-    has_video = any(f.get("vcodec") not in (None, "none") for f in first.get("formats") or []) or first.get("vcodec") not in (None, "none")
+    # vcodec na thakle (FB progressive / direct mp4) video dhore nei; shudhu sob format "none" hole audio-only
+    fmts = first.get("formats") or []
+    has_video = any(f.get("vcodec") != "none" for f in fmts) if fmts else first.get("vcodec") != "none"
 
     long_video = duration and duration > float(config.get("MAX_VIDEO_MIN")) * 60
     fmt = "ba/b" if (long_video or not has_video) else \
