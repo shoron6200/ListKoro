@@ -37,6 +37,7 @@ class LocalServer(private val ctx: Context, port: Int) : NanoHTTPD("127.0.0.1", 
             }
 
             uri == "/api/settings" && m == Method.GET -> json(Response.Status.OK, settings())
+            uri == "/api/debug" && m == Method.GET -> json(Response.Status.OK, debug())
             uri == "/api/settings" && m == Method.POST -> {
                 val d = readJson(s)
                 val map = HashMap<String, String>()
@@ -102,11 +103,26 @@ class LocalServer(private val ctx: Context, port: Int) : NanoHTTPD("127.0.0.1", 
             .put("ollama_vision_model", Store.get("ollama_vision_model"))
             .put("tesseract_lang", "")
             .put("cookies", Store.cookies.exists())
-            .put("ffmpeg", App.ytdlReady.count == 0L && App.ytdlError == null)
+            .put("ffmpeg", App.ytdlOk)
+            .put("ytdl_ok", App.ytdlOk)
+            .put("ytdl_error", App.ytdlError ?: "")
             .put("tesseract", true)
             .put("ocr_label", "ML Kit OCR")
             .put("downloader_label", "yt-dlp " + (try { YoutubeDL.getInstance().version(ctx) ?: "" } catch (_: Exception) { "" }))
     }
+
+    private fun debug(): JSONObject = JSONObject()
+        .put("app", BuildConfig.VERSION_NAME)
+        .put("android", "${android.os.Build.VERSION.RELEASE} (sdk ${android.os.Build.VERSION.SDK_INT})")
+        .put("device", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+        .put("abi", android.os.Build.SUPPORTED_ABIS.joinToString(","))
+        .put("ytdl_ready", App.ytdlReady.count == 0L)
+        .put("ytdl_ok", App.ytdlOk)
+        .put("ytdl_error", App.ytdlError ?: "")
+        .put("ytdl_version", try { YoutubeDL.getInstance().version(ctx) ?: "" } catch (_: Exception) { "" })
+        .put("provider", Store.get("provider"))
+        .put("gemini_model", Store.get("gemini_model"))
+        .put("cookies", Store.cookies.exists())
 
     /** JSON body nijei UTF-8 e pori (Bangla text thik rakhte). */
     private fun readJson(s: IHTTPSession): JSONObject {

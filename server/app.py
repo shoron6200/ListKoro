@@ -154,6 +154,14 @@ def settings_get():
         cookies=config.COOKIES.exists(), ffmpeg=lp.have("ffmpeg"), tesseract=lp.have("tesseract"))
 
 
+@app.get("/api/debug")
+def debug():
+    import platform, yt_dlp
+    return jsonify(app="server", python=platform.python_version(), ytdl_ok=True, ytdl_version=yt_dlp.version.__version__,
+                   ffmpeg=lp.have("ffmpeg"), tesseract=lp.have("tesseract"), provider=config.get("PROVIDER"),
+                   gemini_model=config.get("GEMINI_MODEL"), cookies=config.COOKIES.exists())
+
+
 @app.post("/api/settings")
 def settings_set():
     data = request.get_json(silent=True) or {}

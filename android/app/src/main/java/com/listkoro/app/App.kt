@@ -10,25 +10,46 @@ class App : Application() {
     companion object {
         val ytdlReady = CountDownLatch(1)
         @Volatile var ytdlError: String? = null
+        @Volatile var ytdlOk = false
         @Volatile var port = 17865
         private var server: LocalServer? = null
+        private lateinit var instance: App
+
+        /** yt-dlp + ffmpeg init. Bar bar call kora safe; fail hole asol karon ytdlError e thake. */
+        @Synchronized
+        fun initYtdl(): Boolean {
+            if (ytdlOk) return true
+            try {
+                YoutubeDL.getInstance().init(instance)
+                FFmpeg.getInstance().init(instance)
+                ytdlOk = true
+                ytdlError = null
+            } catch (e: Throwable) {
+                Log.e("ListKoro", "yt-dlp init failed", e)
+                ytdlError = causeChain(e)
+            }
+            return ytdlOk
+        }
+
+        fun causeChain(e: Throwable): String {
+            val parts = ArrayList<String>()
+            var t: Throwable? = e
+            while (t != null && parts.size < 5) {
+                parts += "${t.javaClass.simpleName}: ${t.message ?: ""}".trim()
+                t = t.cause?.takeIf { it !== t }
+            }
+            return parts.joinToString(" ← ").take(600)
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         Store.ctx = this
         startServer()
         Thread {
-            try {
-                YoutubeDL.getInstance().init(this)
-                FFmpeg.getInstance().init(this)
-            } catch (e: Throwable) {
-                Log.e("ListKoro", "yt-dlp init failed", e)
-                ytdlError = e.message ?: e.toString()
-            } finally {
-                ytdlReady.countDown()
-            }
-            if (ytdlError == null) updateYtDlp()
+            try { initYtdl() } finally { ytdlReady.countDown() }
+            if (ytdlOk) updateYtDlp()
         }.start()
     }
 

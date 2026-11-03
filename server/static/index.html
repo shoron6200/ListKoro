@@ -86,6 +86,7 @@
   <form method="dialog" class="sheet" id="settingsForm">
     <div class="sheet-head"><h2>Settings</h2><button class="icon-btn" value="cancel" aria-label="Close">✕</button></div>
     <div class="chips" id="sysChips"></div>
+    <p class="hint err-text hidden" id="ytdlErr"></p>
 
     <label class="lbl">AI provider</label>
     <select id="sProvider">
@@ -127,6 +128,7 @@
     <p class="hint native-only">App er bhitore login koro, cookies auto save hobe. Password kothao save hoy na.</p>
 
     <button class="btn primary big" id="saveSettings" value="default">Save</button>
+    <button class="btn ghost sm" id="copyDebug" type="button">Debug info copy</button>
   </form>
 </dialog>
 

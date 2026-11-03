@@ -78,3 +78,5 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 html.native .web-only{display:none!important}
 html:not(.native) .native-only{display:none!important}
+.err-text{color:var(--err)!important;word-break:break-word}
+#copyDebug{align-self:center;margin-top:4px}

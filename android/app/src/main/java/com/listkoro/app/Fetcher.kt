@@ -70,7 +70,13 @@ object Fetcher {
 
     fun fetch(url: String, work: File, step: (String) -> Unit): Media {
         if (!App.ytdlReady.await(180, java.util.concurrent.TimeUnit.SECONDS)) {
-            throw FetchError("Downloader ready hoy nai: ${App.ytdlError ?: "timeout"}")
+            throw FetchError("Downloader ready hoy nai (timeout). App bondho kore abar kholo.")
+        }
+        if (!App.ytdlOk) {
+            step("Downloader abar start korchi")
+            if (!App.initYtdl()) throw FetchError(
+                "Downloader (yt-dlp) start hoy nai: ${App.ytdlError}. App uninstall kore abar install koro; " +
+                    "tao na hole Settings → Debug info copy kore pathao.")
         }
         step("Link check hocche")
         val original = url

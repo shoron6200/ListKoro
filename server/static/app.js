@@ -172,7 +172,9 @@ async function loadSettings(){
   $("#cookieState").textContent = s.cookies ? "✓ cookies ache" : "cookies nai";
   $("#cookieState").className = "pill " + (s.cookies?"ok":"");
   const chip = (ok,name)=>`<span class="pill ${ok?"ok":"bad"}">${ok?"✓":"✕"} ${name}</span>`;
-  $("#sysChips").innerHTML = chip(s.ffmpeg, s.downloader_label||"ffmpeg") + chip(s.tesseract, s.ocr_label||"tesseract") + chip(s.provider!=="gemini"||s.gemini_key_set,"AI ready");
+  $("#ytdlErr").textContent = s.ytdl_error ? "Downloader error: " + s.ytdl_error : "";
+  $("#ytdlErr").classList.toggle("hidden", !s.ytdl_error);
+  $("#sysChips").innerHTML = chip(s.ytdl_ok ?? s.ffmpeg, s.downloader_label||"ffmpeg") + chip(s.tesseract, s.ocr_label||"tesseract") + chip(s.provider!=="gemini"||s.gemini_key_set,"AI ready");
   syncProvider();
   return s;
 }
@@ -199,6 +201,10 @@ $("#loginIg").onclick = () => NATIVE && NATIVE.login("instagram");
 window.onNativeLogin = () => loadSettings().catch(()=>{});
 // Android back button: age dialog bondho
 window.listkoroBack = () => { if(dlg.open){ dlg.close(); return true; } return false; };
+$("#copyDebug").onclick = async () => {
+  try{ const d = await api("/api/debug"); copy("ListKoro debug\n" + JSON.stringify(d, null, 1)); }
+  catch(e){ toast(e.message); }
+};
 $("#cookieDel").onclick = async () => { await api("/api/cookies",{method:"DELETE"}); loadSettings(); toast("Removed"); };
 
 /* ---------- boot ---------- */
