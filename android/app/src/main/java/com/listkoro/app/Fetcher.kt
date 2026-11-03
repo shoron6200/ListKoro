@@ -85,6 +85,19 @@ object Fetcher {
                 "Downloader (yt-dlp) start hoy nai: ${App.ytdlError}. App uninstall kore abar install koro; " +
                     "tao na hole Settings → Debug info copy kore pathao.")
         }
+        val lock = App.ytdlLock.readLock()
+        if (!lock.tryLock()) {
+            step("yt-dlp update hocche, ektu wait…")
+            lock.lock()
+        }
+        try {
+            return fetchLocked(url, work, step)
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    private fun fetchLocked(url: String, work: File, step: (String) -> Unit): Media {
         step("Link check hocche")
         val original = url
         var target = resolveUrl(url)

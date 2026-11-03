@@ -11,7 +11,8 @@ api(){ curl -s -m 30 "$@"; }
 jget(){ python3 -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
 
 # host e chhoto file server; emulator theke 10.0.2.2 = host
-(cd "$HERE" && python3 -m http.server 8077 >/dev/null 2>&1 &)
+python3 -m http.server 8077 --directory "$HERE" </dev/null >/dev/null 2>&1 &
+HTTP_PID=$!
 
 adb logcat -c || true
 note "install"; adb install -r -g "$APK" || { echo "::error::install failed"; exit 1; }
@@ -63,5 +64,6 @@ if [ $fail = 0 ]; then
 fi
 
 adb logcat -d > "$OUT/logcat.txt" || true
+kill $HTTP_PID 2>/dev/null || true
 grep -iE "ListKoro|youtubedl|AndroidRuntime|FATAL" "$OUT/logcat.txt" | tail -60 || true
 exit $fail

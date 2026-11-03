@@ -12,6 +12,8 @@ class App : Application() {
         @Volatile var ytdlError: String? = null
         @Volatile var ytdlOk = false
         @Volatile var port = 17865
+        /** yt-dlp chalano (read) ar update (write) eksathe na hoy: update er majhe chalale EOFError hoy */
+        val ytdlLock = java.util.concurrent.locks.ReentrantReadWriteLock()
         private var server: LocalServer? = null
         private lateinit var instance: App
 
@@ -69,11 +71,14 @@ class App : Application() {
     private fun updateYtDlp() {
         val last = Store.prefs.getLong("ytdl_updated", 0)
         if (System.currentTimeMillis() - last < 24 * 3600_000L) return
+        ytdlLock.writeLock().lock()
         try {
             YoutubeDL.getInstance().updateYoutubeDL(this, YoutubeDL.UpdateChannel._STABLE)
             Store.prefs.edit().putLong("ytdl_updated", System.currentTimeMillis()).apply()
         } catch (e: Throwable) {
             Log.w("ListKoro", "yt-dlp update failed", e)
+        } finally {
+            ytdlLock.writeLock().unlock()
         }
     }
 }
