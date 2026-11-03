@@ -1,0 +1,141 @@
+package com.listkoro.app
+
+import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLException
+import com.yausername.youtubedl_android.YoutubeDLRequest
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.net.URI
+
+class FetchError(msg: String) : Exception(msg)
+
+class Media(val kind: String, val files: List<File>, val caption: String, val title: String, val audioOnly: Boolean = false)
+
+/** Link theke media: yt-dlp (video/reel) + og:image fallback (photo/poster post). */
+object Fetcher {
+    private const val UA = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36"
+    private const val MAX_VIDEO_SEC = 20 * 60
+    private val URL_RE = Regex("https?://[^\\s<>\"']+")
+
+    fun findUrl(text: String?): String? = text?.let { URL_RE.find(it)?.value?.trimEnd(')', '.', ',') }
+
+    private fun shortErr(e: Throwable): String {
+        val m = (e.message ?: e.toString()).replace(Regex("\u001b\\[[0-9;]*m"), "")
+        val line = m.lines().lastOrNull { it.contains("ERROR") } ?: m.lines().lastOrNull { it.isNotBlank() } ?: m
+        return line.substringBefore("; please report").replace("ERROR: ", "").trim().takeLast(220)
+    }
+
+    private fun request(url: String): YoutubeDLRequest = YoutubeDLRequest(url).apply {
+        addOption("--no-warnings")
+        addOption("--user-agent", UA)
+        addOption("--socket-timeout", "30")
+        if (Store.cookies.exists()) addOption("--cookies", Store.cookies.absolutePath)
+    }
+
+    private fun caption(info: JSONObject): String =
+        listOf(info.optString("title"), info.optString("description"))
+            .map { it.trim() }.filter { it.isNotEmpty() && it != "null" }.distinct().joinToString("\n").take(6000)
+
+    fun fetch(url: String, work: File, step: (String) -> Unit): Media {
+        if (!App.ytdlReady.await(180, java.util.concurrent.TimeUnit.SECONDS)) {
+            throw FetchError("Downloader ready hoy nai: ${App.ytdlError ?: "timeout"}")
+        }
+        step("Post info ana hocche")
+        val info: JSONObject? = try {
+            val r = request(url).apply { addOption("-J") }
+            val out = YoutubeDL.getInstance().execute(r, null, null).out
+            JSONObject(out.substring(out.indexOf('{')))
+        } catch (e: Exception) {
+            if (e is InterruptedException) throw e
+            step("Video pawa jay nai, poster/image khujchi")
+            ogFallback(url, work)?.let { return it }
+            val hint = if (Store.cookies.exists()) " Cookies expire hoye thakte pare, Settings theke abar login koro."
+                       else " Private post hole Settings e Facebook login koro."
+            throw FetchError("Link theke kichu ana gelo na.$hint Na hole screenshot Poster tab e dao. (${shortErr(e)})")
+        }
+        info!!
+        val entries = info.optJSONArray("entries")
+        val first = if (entries != null && entries.length() > 0) entries.optJSONObject(0) ?: info else info
+        val cap = caption(info).ifEmpty { caption(first) }
+        val duration = first.optDouble("duration", 0.0).let { if (it.isNaN()) 0.0 else it }
+        val formats = first.optJSONArray("formats") ?: JSONArray()
+        val hasVideo = (0 until formats.length()).any { formats.optJSONObject(it)?.optString("vcodec", "none") !in listOf("none", "", "null") } ||
+            first.optString("vcodec", "none") !in listOf("none", "", "null")
+        val longVideo = duration > MAX_VIDEO_SEC
+        val audioOnly = longVideo || !hasVideo
+
+        val req = request(first.optString("webpage_url").ifBlank { url }).apply {
+            addOption("-o", File(work, "media_%(autonumber)s.%(ext)s").absolutePath)
+            addOption("--playlist-items", "1")
+            if (audioOnly) {
+                addOption("-f", "ba/b")
+                addOption("-x"); addOption("--audio-format", "mp3"); addOption("--audio-quality", "9")
+            } else {
+                addOption("-f", "b[height<=360]/bv*[height<=360]+ba/b[height<=480]/wv*+ba/w/b")
+                addOption("--merge-output-format", "mp4")
+            }
+        }
+        step(if (audioOnly) "Audio download hocche" else "360p download hocche")
+        try {
+            val onProgress: (Float, Long, String) -> Unit = { progress, _, _ ->
+                if (progress > 0) step("Downloading ${progress.toInt()}%")
+            }
+            YoutubeDL.getInstance().execute(req, null, onProgress)
+        } catch (e: YoutubeDLException) {
+            if (cap.isNotBlank()) return Media("text", emptyList(), cap, info.optString("title"))
+            throw FetchError("Download fail: ${shortErr(e)}")
+        }
+        val files = work.listFiles { f -> f.name.startsWith("media_") && !f.name.endsWith(".part") && !f.name.endsWith(".ytdl") }
+            ?.sortedBy { it.name } ?: emptyList()
+        if (files.isEmpty()) throw FetchError("Download hoy nai")
+        return Media("video", files.take(1), cap, info.optString("title"), audioOnly)
+    }
+
+    // ---------------- photo/poster post: og:image + og:description
+    private fun cookieHeader(host: String): String? {
+        if (!Store.cookies.exists()) return null
+        val pairs = Store.cookies.readLines().mapNotNull { l ->
+            val c = l.removePrefix("#HttpOnly_").split("\t")
+            if (l.startsWith("#") && !l.startsWith("#HttpOnly_") || c.size < 7) null
+            else if (host.endsWith(c[0].trimStart('.'))) "${c[5]}=${c[6]}" else null
+        }
+        return pairs.joinToString("; ").ifEmpty { null }
+    }
+
+    private fun ogFallback(url: String, work: File): Media? {
+        val host = try { URI(url).host ?: "" } catch (_: Exception) { "" }
+        val attempts = listOf("facebookexternalhit/1.1" to null, UA to cookieHeader(host))
+        for ((ua, cookie) in attempts) {
+            try {
+                val rb = Request.Builder().url(url).header("User-Agent", ua).header("Accept-Language", "en")
+                if (cookie != null) rb.header("Cookie", cookie)
+                val (finalUrl, html) = Ai.http.newCall(rb.build()).execute().use { r ->
+                    if (!r.isSuccessful) return@use null to ""
+                    r.request.url.toString() to (r.body?.string() ?: "")
+                }
+                if (finalUrl == null || finalUrl.contains("login")) continue
+                val meta = HashMap<String, String>()
+                Regex("<meta[^>]+(?:property|name)=\"(og:[a-z:]+)\"[^>]+content=\"([^\"]*)\"").findAll(html).forEach {
+                    meta.putIfAbsent(it.groupValues[1], unescape(it.groupValues[2]))
+                }
+                val cap = listOfNotNull(meta["og:title"], meta["og:description"]).joinToString("\n")
+                val img = meta["og:image"]
+                if (img != null) {
+                    val f = File(work, "poster.img")
+                    val ok = Ai.http.newCall(Request.Builder().url(img).header("User-Agent", UA).build()).execute().use { r ->
+                        if (r.isSuccessful) { r.body?.byteStream()?.use { i -> f.outputStream().use { i.copyTo(it) } }; true } else false
+                    }
+                    if (ok && f.length() > 0) return Media("image", listOf(f), cap, meta["og:title"] ?: "")
+                }
+                if (cap.isNotBlank()) return Media("text", emptyList(), cap, meta["og:title"] ?: "")
+            } catch (_: Exception) {
+            }
+        }
+        return null
+    }
+
+    private fun unescape(s: String) = s.replace("&amp;", "&").replace("&quot;", "\"").replace("&#039;", "'")
+        .replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">")
+}

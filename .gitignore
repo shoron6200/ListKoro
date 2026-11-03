@@ -1,0 +1,14 @@
+# Python server
+server/.env
+server/data/
+__pycache__/
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/release.jks
+*.jks
+*.keystore
+.idea/
+*.iml

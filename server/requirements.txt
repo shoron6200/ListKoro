@@ -1,0 +1,5 @@
+flask>=3.0
+requests>=2.31
+yt-dlp>=2025.1.1
+# Optional (PC te local speech-to-text er jonno):
+# faster-whisper

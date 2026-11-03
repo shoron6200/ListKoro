@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>ListKoro</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="/static/icon.svg" alt="" width="28" height="28"><span>ListKoro</span></div>
+  <button class="icon-btn" id="openSettings" aria-label="Settings">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</header>
+
+<main>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="link" class="active">🔗 Link</button>
+    <button role="tab" data-tab="image">🖼 Poster</button>
+    <button role="tab" data-tab="text">📝 Text</button>
+    <button role="tab" data-tab="history">🕘 History</button>
+  </nav>
+
+  <section class="panel" id="tab-link">
+    <label class="lbl" for="urlInput">Facebook / Instagram / YouTube post er link</label>
+    <div class="row">
+      <input id="urlInput" type="url" inputmode="url" placeholder="https://www.facebook.com/reel/..." autocomplete="off">
+      <button class="btn ghost" id="pasteBtn" type="button">Paste</button>
+    </div>
+    <p class="hint">Video hole 360p te nambe, AI dekhe/shune list dibe. Photo post hole poster theke porbe.</p>
+    <button class="btn primary big" id="goLink">List ber koro</button>
+  </section>
+
+  <section class="panel hidden" id="tab-image">
+    <label class="drop" id="drop">
+      <input id="imgInput" type="file" accept="image/*" multiple hidden>
+      <span class="drop-ic">＋</span>
+      <span>Poster / screenshot select koro</span>
+      <small>Ekadhik image o deya jabe</small>
+    </label>
+    <div class="thumbs" id="thumbs"></div>
+    <textarea id="imgCaption" rows="2" placeholder="Caption thakle ekhane dite paro (optional)"></textarea>
+    <button class="btn primary big" id="goImage">List ber koro</button>
+  </section>
+
+  <section class="panel hidden" id="tab-text">
+    <label class="lbl" for="textInput">Post er text / caption paste koro</label>
+    <textarea id="textInput" rows="8" placeholder="Top 10 AI tools for video editing: 1. ..."></textarea>
+    <button class="btn primary big" id="goText">List ber koro</button>
+  </section>
+
+  <section class="panel hidden" id="tab-history">
+    <input id="histSearch" type="search" placeholder="Search: movie / tool er nam…">
+    <div id="histList" class="hist"></div>
+  </section>
+
+  <section id="status" class="card status hidden" aria-live="polite">
+    <div class="spinner"></div>
+    <div><div id="statusStep">Shuru hocche…</div><small id="statusTime">0s</small></div>
+  </section>
+
+  <section id="error" class="card error hidden" role="alert"></section>
+
+  <section id="result" class="card hidden">
+    <div class="res-head">
+      <div>
+        <h2 id="resTitle"></h2>
+        <small id="resMeta"></small>
+      </div>
+      <div class="res-actions">
+        <button class="btn ghost sm" id="copyAll">Copy all</button>
+        <button class="btn ghost sm" id="shareAll">Share</button>
+      </div>
+    </div>
+    <ol id="resList" class="items"></ol>
+  </section>
+</main>
+
+<dialog id="settings">
+  <form method="dialog" class="sheet" id="settingsForm">
+    <div class="sheet-head"><h2>Settings</h2><button class="icon-btn" value="cancel" aria-label="Close">✕</button></div>
+    <div class="chips" id="sysChips"></div>
+
+    <label class="lbl">AI provider</label>
+    <select id="sProvider">
+      <option value="gemini">Gemini (free API, video bujhe, recommended)</option>
+      <option value="ollama">Ollama (100% local, PC te)</option>
+      <option value="basic">Basic OCR (AI chara, shudhu text line)</option>
+    </select>
+
+    <div data-for="gemini">
+      <label class="lbl">Gemini API key <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">free key nao ↗</a></label>
+      <input id="sKey" type="password" autocomplete="off" placeholder="AIza…">
+      <label class="lbl">Model</label>
+      <input id="sModel" placeholder="gemini-flash-latest">
+    </div>
+    <div data-for="ollama">
+      <label class="lbl">Ollama host</label>
+      <input id="sOHost" placeholder="http://localhost:11434">
+      <label class="lbl">Text model</label>
+      <input id="sOModel" placeholder="qwen2.5:7b">
+      <label class="lbl">Vision model (optional, poster er jonno)</label>
+      <input id="sOVision" placeholder="qwen2.5vl:7b">
+    </div>
+    <div class="web-only">
+      <label class="lbl">OCR language (tesseract)</label>
+      <input id="sLang" placeholder="eng  ba  eng+ben">
+    </div>
+
+    <label class="lbl">Cookies (private post er jonno)</label>
+    <div class="row">
+      <span id="cookieState" class="pill">—</span>
+      <label class="btn ghost sm">Upload cookies.txt<input id="cookieFile" type="file" accept=".txt,text/plain" hidden></label>
+      <button class="btn ghost sm" id="cookieDel" type="button">Remove</button>
+    </div>
+    <div class="row native-only">
+      <button class="btn ghost sm" id="loginFb" type="button">Facebook e login</button>
+      <button class="btn ghost sm" id="loginIg" type="button">Instagram e login</button>
+    </div>
+    <p class="hint web-only">PC browser e "Get cookies.txt LOCALLY" extension diye facebook.com e export koro.</p>
+    <p class="hint native-only">App er bhitore login koro, cookies auto save hobe. Password kothao save hoy na.</p>
+
+    <button class="btn primary big" id="saveSettings" value="default">Save</button>
+  </form>
+</dialog>
+
+<div id="toast" class="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
