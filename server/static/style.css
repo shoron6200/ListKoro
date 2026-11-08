@@ -11,12 +11,12 @@
 html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif;-webkit-tap-highlight-color:transparent}
 .top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .brand{display:flex;gap:10px;align-items:center;font-weight:750;font-size:19px;letter-spacing:-.01em}
-main{max-width:640px;margin:0 auto;padding:14px 16px 90px}
+main{max-width:640px;margin:0 auto;padding:14px 16px calc(96px + env(safe-area-inset-bottom))}
 .icon-btn{background:none;border:0;color:var(--text);padding:8px;border-radius:10px;cursor:pointer;font-size:18px;line-height:1}
 .icon-btn:active{background:var(--surface2)}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);padding:4px;border-radius:var(--radius);margin-bottom:14px}
-.tabs button{border:0;background:none;color:var(--muted);padding:10px 2px;border-radius:10px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
-.tabs button.active{background:var(--surface2);color:var(--text)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);padding:4px;border-radius:var(--radius);margin-bottom:14px}
+.seg button{border:0;background:none;color:var(--muted);padding:10px 2px;border-radius:10px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.seg button.active{background:var(--surface2);color:var(--text)}
 .panel{display:flex;flex-direction:column;gap:10px}
 .hidden{display:none!important}
 .lbl{font-size:13px;color:var(--muted);font-weight:600;margin-top:4px}
@@ -80,3 +80,59 @@ html.native .web-only{display:none!important}
 html:not(.native) .native-only{display:none!important}
 .err-text{color:var(--err)!important;word-break:break-word}
 #copyDebug{align-self:center;margin-top:4px}
+
+/* ---------- bottom nav ---------- */
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(3,1fr);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:6px 8px max(6px,env(safe-area-inset-bottom))}
+.bottom button{border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;font-weight:650;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:12px;cursor:pointer;position:relative}
+.bottom button span{font-size:20px;line-height:1.1;filter:grayscale(1);opacity:.7}
+.bottom button.active{color:var(--text);background:var(--surface2)}
+.bottom button.active span{filter:none;opacity:1}
+.bottom .badge{position:absolute;top:2px;right:calc(50% - 22px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:11px;line-height:18px}
+.page{display:flex;flex-direction:column;gap:10px}
+.danger{color:var(--err)!important}
+.link-btn{background:none;border:0;font:inherit;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;padding:4px}
+
+/* ---------- job card ---------- */
+.job .job-head{display:flex;gap:12px;align-items:center}
+.job-title{flex:1;min-width:0}
+.job-title b{display:block;font-weight:650;word-break:break-word}
+.job-title small{color:var(--muted)}
+.job.finished .spinner{animation:none;border-top-color:var(--line)}
+.bar{height:8px;border-radius:99px;background:var(--surface2);overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .4s}
+.bar.indet i{width:35%;animation:indet 1.2s ease-in-out infinite}
+@keyframes indet{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+.bar-text{display:block;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+.log{list-style:none;margin:10px 0 0;padding:0;font-size:13.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.log li{display:flex;gap:8px}
+.log li::before{content:"✓";color:var(--ok);font-weight:700;width:14px;flex:none}
+.log li.now{color:var(--text)}
+.log li.now::before{content:"•";color:var(--accent)}
+.log li.bad::before{content:"✕";color:var(--err)}
+.log small{margin-left:auto;font-variant-numeric:tabular-nums}
+
+/* ---------- download ---------- */
+.fmt-head{display:flex;gap:12px;align-items:center}
+.fmt-head img{width:88px;height:88px;object-fit:cover;border-radius:10px;background:var(--surface2);flex:none}
+.fmt-head img[src=""]{display:none}
+.fmt-head b{display:block;font-weight:650;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.fmt-head small{color:var(--muted)}
+.fmt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.fmt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface2);color:var(--text);font:inherit;cursor:pointer}
+.fmt b{font-size:17px}
+.fmt small{color:var(--muted)}
+.fmt.audio b{color:var(--t-website)}
+.fmt:active{transform:scale(.98)}
+.sec-head{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+.sec-head h3{margin:0;font-size:16px}
+.dl-list{display:flex;flex-direction:column;gap:8px}
+.dl{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.dl-top{display:flex;gap:10px;align-items:flex-start}
+.dl-ic{font-size:22px;line-height:1.2}
+.dl-info{flex:1;min-width:0}
+.dl-info b{display:block;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-info small{display:block;color:var(--muted)}
+.dl-info small.err{color:var(--err);white-space:normal}
+.dl-act{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.dl-act .btn,.dl-act a.btn{padding:8px 12px;font-size:14px;text-decoration:none}
+.share-url{word-break:break-all}

@@ -75,65 +75,91 @@ object Fetcher {
         listOf(info.optString("title"), info.optString("description"))
             .map { it.trim() }.filter { it.isNotEmpty() && it != "null" }.distinct().joinToString("\n").take(6000)
 
-    fun fetch(url: String, work: File, step: (String) -> Unit): Media {
+    /** yt-dlp ready kora + update er sathe clash na howa (read lock) */
+    private fun <T> withYtdl(ctl: JobCtl, block: () -> T): T {
         if (!App.ytdlReady.await(180, java.util.concurrent.TimeUnit.SECONDS)) {
             throw FetchError("Downloader ready hoy nai (timeout). App bondho kore abar kholo.")
         }
         if (!App.ytdlOk) {
-            step("Downloader abar start korchi")
+            ctl.step("Downloader abar start korchi")
             if (!App.initYtdl()) throw FetchError(
                 "Downloader (yt-dlp) start hoy nai: ${App.ytdlError}. App uninstall kore abar install koro; " +
                     "tao na hole Settings → Debug info copy kore pathao.")
         }
         val lock = App.ytdlLock.readLock()
         if (!lock.tryLock()) {
-            step("yt-dlp update hocche, ektu wait…")
-            lock.lock()
+            ctl.step("yt-dlp update hocche, ektu wait…")
+            lock.lockInterruptibly()
         }
         try {
-            return fetchLocked(url, work, step)
+            return block()
         } finally {
             lock.unlock()
         }
     }
 
-    private fun fetchLocked(url: String, work: File, step: (String) -> Unit): Media {
-        step("Link check hocche")
-        val original = url
-        var target = resolveUrl(url)
-        val videoLink = isVideoUrl(original) || isVideoUrl(target)
-        step("Post info ana hocche")
-        var info: JSONObject? = null
+    private fun execute(req: YoutubeDLRequest, ctl: JobCtl, withProgress: Boolean = false): String {
+        val onProgress: (Float, Long, String) -> Unit = { p, eta, line -> ctl.progress(p, eta, line) }
+        val cb: ((Float, Long, String) -> Unit)? = if (withProgress) onProgress else null
+        try {
+            return YoutubeDL.getInstance().execute(req, ctl.id, cb).out
+        } catch (e: YoutubeDL.CanceledException) {
+            throw Cancelled()
+        } catch (e: YoutubeDLException) {
+            ctl.check()   // cancel er karone process mara gele
+            throw e
+        }
+    }
+
+    /** Prothom je URL e info pawa jay: (info, url, err) */
+    private fun extract(urls: List<String>, ctl: JobCtl): Triple<JSONObject?, String, String> {
         var err = ""
-        for (u in listOf(target, original).distinct()) {  // resolved age, na hole original
+        for (u in urls.distinct()) {
             try {
-                val r = request(u).apply { addOption("-J") }
-                val out = YoutubeDL.getInstance().execute(r, null, null).out
-                info = JSONObject(out.substring(out.indexOf('{')))
-                target = u
-                break
+                val out = execute(request(u).apply { addOption("-J") }, ctl)
+                return Triple(JSONObject(out.substring(out.indexOf('{'))), u, "")
+            } catch (e: Cancelled) {
+                throw e
             } catch (e: InterruptedException) {
                 throw e
             } catch (e: Exception) {
                 err = shortErr(e)
             }
         }
+        return Triple(null, urls.first(), err)
+    }
+
+    private fun firstEntry(info: JSONObject): JSONObject {
+        val entries = info.optJSONArray("entries")
+        return if (entries != null && entries.length() > 0) entries.optJSONObject(0) ?: info else info
+    }
+
+    private fun str(o: JSONObject?, k: String) = o?.opt(k)?.toString()?.takeIf { it.isNotBlank() && it != "null" }
+    private fun num(o: JSONObject?, k: String) = o?.optDouble(k, Double.NaN)?.takeIf { !it.isNaN() && it > 0 }
+
+    fun fetch(url: String, work: File, ctl: JobCtl): Media = withYtdl(ctl) { fetchLocked(url, work, ctl) }
+
+    private fun fetchLocked(url: String, work: File, ctl: JobCtl): Media {
+        ctl.step("Link check hocche")
+        val original = url
+        val resolved = resolveUrl(url)
+        val videoLink = isVideoUrl(original) || isVideoUrl(resolved)
+        ctl.step("Post info ana hocche")
+        val (info, target, err) = extract(listOf(resolved, original), ctl)
         if (info == null) {
             // video link e thumbnail porle bhul list ashe, tai clear error
             if (videoLink) throw FetchError("Video download hoy nai.${loginHint(original)} ($err)")
-            step("Video pawa jay nai, poster/image khujchi")
+            ctl.step("Video pawa jay nai, poster/image khujchi")
             ogFallback(target, work)?.let { it.warning = "Video pawa jay nai, post er image/caption theke pora hoyeche."; return it }
             throw FetchError("Link theke kichu ana gelo na.${loginHint(original)} Na hole screenshot Poster tab e dao. ($err)")
         }
-        val entries = info.optJSONArray("entries")
-        val first = if (entries != null && entries.length() > 0) entries.optJSONObject(0) ?: info else info
+        val first = firstEntry(info)
         val cap = caption(info).ifEmpty { caption(first) }
-        val duration = first.optDouble("duration", 0.0).let { if (it.isNaN()) 0.0 else it }
+        val duration = num(first, "duration") ?: 0.0
         // vcodec na thakle (FB progressive / direct mp4) video dhore nei; shudhu sob format "none" hole audio-only
-        fun vcodec(o: JSONObject?) = o?.opt("vcodec")?.toString()?.takeIf { it.isNotBlank() && it != "null" }
         val formats = first.optJSONArray("formats") ?: JSONArray()
         val fmts = (0 until formats.length()).mapNotNull { formats.optJSONObject(it) }
-        val hasVideo = if (fmts.isNotEmpty()) fmts.any { vcodec(it) != "none" } else vcodec(first) != "none"
+        val hasVideo = if (fmts.isNotEmpty()) fmts.any { str(it, "vcodec") != "none" } else str(first, "vcodec") != "none"
         val longVideo = duration > MAX_VIDEO_SEC
         val audioOnly = longVideo || !hasVideo
 
@@ -148,12 +174,9 @@ object Fetcher {
                 addOption("--merge-output-format", "mp4")
             }
         }
-        step(if (audioOnly) "Audio download hocche" else "360p download hocche")
+        ctl.step(if (audioOnly) "Audio download hocche" else "360p download hocche (AI er jonno)")
         try {
-            val onProgress: (Float, Long, String) -> Unit = { progress, _, _ ->
-                if (progress > 0) step("Downloading ${progress.toInt()}%")
-            }
-            YoutubeDL.getInstance().execute(req, null, onProgress)
+            execute(req, ctl, withProgress = true)
         } catch (e: YoutubeDLException) {
             if (cap.isNotBlank()) return Media("text", emptyList(), cap, info.optString("title"),
                 warning = "Video download hoy nai (${shortErr(e).take(120)}), shudhu caption theke pora.")
@@ -163,6 +186,88 @@ object Fetcher {
             ?.sortedBy { it.name } ?: emptyList()
         if (files.isEmpty()) throw FetchError("Download hoy nai")
         return Media("video", files.take(1), cap, info.optString("title"), audioOnly)
+    }
+
+    // ---------------- video download (Snaptube er moto quality select)
+    private fun size(f: JSONObject?, duration: Double): Long? {
+        f ?: return null
+        val s = num(f, "filesize") ?: num(f, "filesize_approx") ?: num(f, "tbr")?.let { t -> if (duration > 0) t * 1000 / 8 * duration else null }
+        return s?.toLong()
+    }
+
+    /** Quality option: [{label, kind, format, size}] */
+    fun formats(url: String, ctl: JobCtl): JSONObject = withYtdl(ctl) {
+        ctl.step("Link check hocche")
+        val resolved = resolveUrl(url)
+        ctl.step("Video info ana hocche")
+        val (info, target, err) = extract(listOf(resolved, url), ctl)
+        info ?: throw FetchError("Video info pawa gelo na.${loginHint(url)} ($err)")
+        val first = firstEntry(info)
+        val duration = num(first, "duration") ?: 0.0
+        val arr = first.optJSONArray("formats")
+        val fmts = if (arr != null && arr.length() > 0) (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } else listOf(first)
+        val audio = fmts.filter { str(it, "vcodec") == "none" && str(it, "acodec").let { a -> a != null && a != "none" } }
+        val bestAudio = audio.maxByOrNull { num(it, "abr") ?: num(it, "tbr") ?: 0.0 }
+        val aSize = size(bestAudio, duration)
+        val byP = sortedMapOf<Int, JSONObject>(compareByDescending { it })
+        for (f in fmts) {
+            if (str(f, "vcodec") == "none" || str(f, "format_id") == null) continue
+            val h = num(f, "height")?.toInt() ?: continue
+            val w = num(f, "width")?.toInt()
+            val p = if (w != null) minOf(w, h) else h          // vertical reel 1080x1920 = 1080p
+            val cur = byP[p]
+            if (cur == null || (num(f, "tbr") ?: 0.0) > (num(cur, "tbr") ?: 0.0)) byP[p] = f
+        }
+        val options = JSONArray()
+        for ((p, f) in byP) {
+            val videoOnly = str(f, "acodec") == "none"
+            var s = size(f, duration)
+            if (s != null && videoOnly && aSize != null) s += aSize
+            val id = f.getString("format_id")
+            options.put(JSONObject().put("label", "${p}p").put("kind", "video").put("ext", "mp4")
+                .put("size", s ?: JSONObject.NULL).put("format", if (videoOnly) "$id+bestaudio/$id" else id))
+        }
+        if (options.length() == 0) {
+            options.put(JSONObject().put("label", "Best video").put("kind", "video").put("ext", "mp4")
+                .put("size", size(first, duration) ?: JSONObject.NULL).put("format", "bv*+ba/b"))
+        }
+        if (bestAudio != null || fmts.any { str(it, "acodec") != "none" }) {
+            options.put(JSONObject().put("label", "MP3").put("kind", "audio").put("ext", "mp3")
+                .put("size", aSize ?: JSONObject.NULL).put("format", "ba/b"))
+        }
+        JSONObject().put("url", str(first, "webpage_url") ?: target)
+            .put("title", str(first, "title") ?: str(info, "title") ?: "Video")
+            .put("thumbnail", str(first, "thumbnail") ?: str(info, "thumbnail") ?: "")
+            .put("duration", duration).put("uploader", str(first, "uploader") ?: "")
+            .put("options", options)
+    }
+
+    private val FORMAT_OK = Regex("^[\\w+\\-/\\[\\]<>=.*:]{1,120}$")
+
+    /** Select kora quality te download, final file ferot dey */
+    fun download(url: String, format: String, kind: String, work: File, ctl: JobCtl): File = withYtdl(ctl) {
+        if (!FORMAT_OK.matches(format)) throw FetchError("Bhul format")
+        val req = request(url).apply {
+            addOption("-f", format)
+            addOption("-o", File(work, "%(title).60B [%(id)s].%(ext)s").absolutePath)
+            addOption("--playlist-items", "1")
+            addOption("--no-mtime")
+            if (kind == "audio") {
+                addOption("-x"); addOption("--audio-format", "mp3"); addOption("--audio-quality", "0")
+            } else {
+                addOption("--merge-output-format", "mp4")
+            }
+        }
+        ctl.step("Download hocche")
+        try {
+            execute(req, ctl, withProgress = true)
+        } catch (e: YoutubeDLException) {
+            throw FetchError("Download fail.${loginHint(url)} (${shortErr(e)})")
+        }
+        work.listFiles { f -> f.isFile && !f.name.endsWith(".part") && !f.name.endsWith(".ytdl") && !f.name.contains(".f") }
+            ?.maxByOrNull { it.length() }
+            ?: work.listFiles { f -> f.isFile && !f.name.endsWith(".part") }?.maxByOrNull { it.length() }
+            ?: throw FetchError("Download hoy nai")
     }
 
     // ---------------- photo/poster post: og:image + og:description

@@ -1,7 +1,7 @@
 """ListKoro: FB/IG/YT link, poster ba text theke movie/tool list. `python app.py` diye chalao."""
 import shutil, tempfile, threading, time, uuid
 from pathlib import Path
-from flask import Flask, jsonify, redirect, request, send_from_directory
+from flask import Flask, jsonify, redirect, request, send_file, send_from_directory
 from urllib.parse import urlencode
 import ai, config, db, fetcher, local_pipeline as lp
 
@@ -12,67 +12,154 @@ IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif", ".bmp"}
 
 
 # ------------------------------------------------------------------ job runner
+# Job: {id, mode: list|formats|download, status: running|done|error|cancelled, step, log[], progress, result}
+PRIVATE = {"cancel"}
+
+
+def _public(j):
+    return {k: v for k, v in j.items() if k not in PRIVATE}
+
+
 def _set(job, **kw):
     JOBS[job].update(kw, updated=time.time())
 
 
-def run_job(job, kind, payload, extra_text=""):
+def _ctl(job):
+    """step(msg): log e jog kore, cancel hole thamay. prog(d): download progress."""
+    def check():
+        if JOBS[job].get("cancel"):
+            raise fetcher.Cancelled()
+
+    def step(msg):
+        check()
+        j = JOBS[job]
+        if j.get("step") != msg:
+            j["log"].append({"t": round(time.time() - j["created"], 1), "msg": msg})
+        _set(job, step=msg, progress=None)
+
+    def prog(d):
+        if JOBS[job].get("cancel"):
+            import yt_dlp
+            raise yt_dlp.utils.DownloadCancelled()
+        _set(job, progress=d)
+    return step, prog, check
+
+
+def _finish(job, **kw):
+    j = JOBS[job]
+    if j.get("cancel"):
+        kw = {"status": "cancelled", "error": "Cancel kora hoyeche"}
+    msg = {"done": "Done ✓", "cancelled": "Cancel hoyeche", "error": "Error"}[kw["status"]]
+    j["log"].append({"t": round(time.time() - j["created"], 1), "msg": msg})
+    _set(job, step=msg, progress=None, **kw)
+
+
+def _run(job, fn):
     work = Path(tempfile.mkdtemp(dir=config.TMP))
-    step = lambda s: _set(job, step=s)
     try:
-        provider = ai.get_provider()
-        provider.step = step
-        warning = ""
-        if kind == "text":
-            url = fetcher.find_url(payload)
-            only_url = url and len(payload.strip()) <= len(url) + 40
-            if only_url:          # text er bhitore shudhu link -> link hisebe dhoro
-                kind, payload = "url", url
-        if kind == "text":
-            step("AI text porche")
-            res, source = provider.from_text(payload), payload[:300]
-        elif kind == "image":
-            step("AI poster/image porche")
-            res, source = provider.from_images(payload, extra_text), "image upload"
-        else:
-            media = fetcher.fetch(payload, work, step)
-            source = payload
-            if media["kind"] == "video":
-                step("AI audio shunche" if media.get("audio_only") else "AI video dekhche")
-                res = provider.from_video(media["paths"][0], media["caption"])
-            elif media["kind"] == "image":
-                step("AI poster porche")
-                res = provider.from_images(media["paths"], media["caption"])
-            else:
-                step("AI caption porche")
-                res = provider.from_text(media["caption"])
-            if not res["title"]:
-                res["title"] = (media.get("title") or "")[:80]
-            warning = media.get("warning", "")
-        if not res["items"]:
-            raise ai.AIError("Kono movie/tool er nam pawa gelo na.")
-        rid = db.add(kind, source, res["title"] or "Untitled list", res["items"], provider.name)
-        result = db.get(rid)
-        if warning:
-            result["warning"] = warning
-        _set(job, status="done", step="Done", result=result)
+        _finish(job, status="done", result=fn(work))
+    except fetcher.Cancelled:
+        _finish(job, status="cancelled", error="Cancel kora hoyeche")
     except (ai.AIError, fetcher.FetchError) as e:
-        _set(job, status="error", error=str(e))
+        _finish(job, status="error", error=str(e))
     except Exception as e:  # noqa
         app.logger.exception("job failed")
-        _set(job, status="error", error=f"{type(e).__name__}: {e}")
+        _finish(job, status="error", error=f"{type(e).__name__}: {e}")
     finally:
         shutil.rmtree(work, ignore_errors=True)
-        if kind == "image":
-            for p in payload:
-                Path(p).unlink(missing_ok=True)
 
 
-def start_job(kind, payload, extra_text=""):
+def list_task(job, kind, payload, extra_text=""):
+    step, prog, check = _ctl(job)
+
+    def fn(work):
+        nonlocal kind, payload
+        try:
+            provider = ai.get_provider()
+            provider.step = step
+            warning = ""
+            if kind == "text":
+                url = fetcher.find_url(payload)
+                if url and len(payload.strip()) <= len(url) + 40:   # text e shudhu link -> link
+                    kind, payload = "url", url
+            if kind == "text":
+                step("AI text porche")
+                res, source = provider.from_text(payload), payload[:300]
+            elif kind == "image":
+                step("AI poster/image porche")
+                res, source = provider.from_images(payload, extra_text), "image upload"
+            else:
+                media = fetcher.fetch(payload, work, step, prog)
+                source = payload
+                if media["kind"] == "video":
+                    step("AI audio shunche" if media.get("audio_only") else "AI video dekhche")
+                    res = provider.from_video(media["paths"][0], media["caption"])
+                elif media["kind"] == "image":
+                    step("AI poster porche")
+                    res = provider.from_images(media["paths"], media["caption"])
+                else:
+                    step("AI caption porche")
+                    res = provider.from_text(media["caption"])
+                if not res["title"]:
+                    res["title"] = (media.get("title") or "")[:80]
+                warning = media.get("warning", "")
+            check()  # cancel hole result save hobe na
+            if not res["items"]:
+                raise ai.AIError("Kono movie/tool er nam pawa gelo na.")
+            rid = db.add(kind, source, res["title"] or "Untitled list", res["items"], provider.name)
+            result = db.get(rid)
+            if warning:
+                result["warning"] = warning
+            return result
+        finally:
+            if kind == "image":
+                for p in payload:
+                    Path(p).unlink(missing_ok=True)
+    _run(job, fn)
+
+
+def formats_task(job, url):
+    step, _, _ = _ctl(job)
+    _run(job, lambda work: fetcher.formats(url, step))
+
+
+def _save_dir():
+    termux = Path.home() / "storage" / "downloads"   # Termux: phone er Download folder
+    d = termux / "ListKoro" if termux.exists() else config.DATA / "downloads"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def download_task(job, url, fmt, kind, label):
+    step, prog, check = _ctl(job)
+
+    def fn(work):
+        path, title = fetcher.download(url, fmt, kind, work, step, prog)
+        check()
+        step("Save hocche")
+        dest = _save_dir() / path.name
+        if dest.exists():
+            dest = dest.with_name(f"{dest.stem}-{uuid.uuid4().hex[:4]}{dest.suffix}")
+        shutil.move(str(path), dest)
+        mime = "audio/mpeg" if dest.suffix == ".mp3" else "video/mp4"
+        did = db.add_download(url, title, label, kind, dest.name, str(dest), dest.stat().st_size, mime)
+        return _dl_public(db.get_download(did))
+    _run(job, fn)
+
+
+def _dl_public(d):
+    d = dict(d)
+    d["location"] = str(Path(d.pop("path", "")).parent).replace(str(Path.home()), "~")
+    d["file_url"] = f"/api/files/{d['id']}"
+    return d
+
+
+def start_job(mode, target, *args, title="", **meta):
     job = uuid.uuid4().hex[:12]
-    JOBS[job] = {"id": job, "status": "running", "step": "Shuru hocche", "created": time.time()}
-    threading.Thread(target=run_job, args=(job, kind, payload, extra_text), daemon=True).start()
-    for k in [k for k, v in JOBS.items() if time.time() - v["created"] > 3600]:
+    JOBS[job] = {"id": job, "mode": mode, "status": "running", "step": "Shuru hocche", "created": time.time(),
+                 "log": [], "progress": None, "title": title, **meta}
+    threading.Thread(target=target, args=(job, *args), daemon=True).start()
+    for k in [k for k, v in JOBS.items() if time.time() - v["created"] > 6 * 3600 and v["status"] != "running"]:
         JOBS.pop(k, None)
     return job
 
@@ -113,23 +200,53 @@ def create_job():
         paths = _save_images(request.files.getlist("image"))
         if not paths:
             return jsonify(error="Image file dao (jpg/png/webp)"), 400
-        return jsonify(job=start_job("image", paths, request.form.get("text", "")))
+        return jsonify(job=start_job("list", list_task, "image", paths, request.form.get("text", ""),
+                                     title="Poster"))
     data = request.get_json(silent=True) or {}
+    mode = data.get("mode") or "list"
     url, text = (data.get("url") or "").strip(), (data.get("text") or "").strip()
-    if url:
-        found = fetcher.find_url(url)
-        if not found:
-            return jsonify(error="Valid link dao (https://...)"), 400
-        return jsonify(job=start_job("url", found))
+    found = fetcher.find_url(url) if url else None
+    if url and not found:
+        return jsonify(error="Valid link dao (https://...)"), 400
+    if mode == "formats" and found:
+        return jsonify(job=start_job("formats", formats_task, found, title=found))
+    if mode == "download" and found:
+        fmt, kind = data.get("format") or "", data.get("kind") or "video"
+        if not fetcher.FORMAT_OK.match(fmt) or kind not in ("video", "audio"):
+            return jsonify(error="Quality select koro"), 400
+        label = (data.get("label") or "")[:20]
+        return jsonify(job=start_job("download", download_task, found, fmt, kind, label,
+                                     title=(data.get("title") or found)[:120], label=label, kind=kind))
+    if found:
+        return jsonify(job=start_job("list", list_task, "url", found, title=found))
     if text:
-        return jsonify(job=start_job("text", text))
+        return jsonify(job=start_job("list", list_task, "text", text, title=text[:60]))
     return jsonify(error="Link, text ba image dao"), 400
+
+
+@app.get("/api/jobs")
+def jobs_list():
+    rows = sorted(JOBS.values(), key=lambda j: j["created"], reverse=True)
+    if request.args.get("active"):
+        rows = [j for j in rows if j["status"] == "running"]
+    return jsonify([_public(j) for j in rows[:50]])
 
 
 @app.get("/api/jobs/<job>")
 def job_status(job):
     j = JOBS.get(job)
-    return (jsonify(j), 200) if j else (jsonify(error="Job pawa jay nai"), 404)
+    return (jsonify(_public(j)), 200) if j else (jsonify(error="Job pawa jay nai"), 404)
+
+
+@app.post("/api/jobs/<job>/cancel")
+def job_cancel(job):
+    j = JOBS.get(job)
+    if not j:
+        return jsonify(error="Job pawa jay nai"), 404
+    if j["status"] == "running":
+        j["cancel"] = True
+        _set(job, step="Cancel hocche…")
+    return jsonify(_public(j))
 
 
 @app.get("/api/history")
@@ -141,6 +258,36 @@ def history():
 def history_delete(rid):
     db.delete(rid)
     return jsonify(ok=True)
+
+
+@app.delete("/api/history")
+def history_clear():
+    db.clear()
+    return jsonify(ok=True)
+
+
+@app.get("/api/downloads")
+def downloads():
+    return jsonify([_dl_public(d) for d in db.list_downloads()])
+
+
+@app.delete("/api/downloads/<int:did>")
+def download_delete(did):
+    d = db.get_download(did)
+    if d:
+        if request.args.get("file") == "1":
+            Path(d["path"]).unlink(missing_ok=True)
+        db.delete_download(did)
+    return jsonify(ok=True)
+
+
+@app.get("/api/files/<int:did>")
+def download_file(did):
+    d = db.get_download(did)
+    if not d or not Path(d["path"]).exists():
+        return jsonify(error="File nai"), 404
+    return send_file(d["path"], mimetype=d["mime"], as_attachment=request.args.get("dl") == "1",
+                     download_name=d["filename"])
 
 
 @app.get("/api/settings")
@@ -197,12 +344,12 @@ def share():
     text = " ".join(x for x in (src.get("title"), src.get("text"), src.get("url")) if x).strip()
     paths = _save_images(request.files.getlist("image")) if request.files else []
     if paths:
-        return redirect("/?" + urlencode({"job": start_job("image", paths, text)}), 303)
+        return redirect("/?" + urlencode({"job": start_job("list", list_task, "image", paths, text, title="Poster")}), 303)
     url = fetcher.find_url(text)
-    if url:
-        return redirect("/?" + urlencode({"job": start_job("url", url)}), 303)
+    if url:  # link: UI jiggesh korbe "List ber koro" naki "Download"
+        return redirect("/?" + urlencode({"share": url}), 303)
     if text:
-        return redirect("/?" + urlencode({"job": start_job("text", text)}), 303)
+        return redirect("/?" + urlencode({"job": start_job("list", list_task, "text", text, title=text[:60])}), 303)
     return redirect("/", 303)
 
 

@@ -28,12 +28,28 @@ class LocalServer(private val ctx: Context, port: Int) : NanoHTTPD("127.0.0.1", 
             m == Method.GET && uri.startsWith("/static/") -> asset(uri.removePrefix("/static/"))
 
             uri == "/api/jobs" && m == Method.POST -> createJob(s)
+            uri == "/api/jobs" && m == Method.GET ->
+                json(Response.Status.OK, Jobs.list(s.parameters["active"]?.firstOrNull()?.isNotEmpty() == true))
+            uri.startsWith("/api/jobs/") && uri.endsWith("/cancel") && m == Method.POST ->
+                Jobs.cancel(uri.removePrefix("/api/jobs/").removeSuffix("/cancel"))?.let { json(Response.Status.OK, it) }
+                    ?: error(404, "Job pawa jay nai")
             uri.startsWith("/api/jobs/") && m == Method.GET ->
                 Jobs.get(uri.removePrefix("/api/jobs/"))?.let { json(Response.Status.OK, it) } ?: error(404, "Job pawa jay nai")
 
             uri == "/api/history" && m == Method.GET -> json(Response.Status.OK, Store.search(s.parameters["q"]?.firstOrNull() ?: ""))
+            uri == "/api/history" && m == Method.DELETE -> { Store.clearHistory(); ok() }
             uri.startsWith("/api/history/") && m == Method.DELETE -> {
                 Store.delete(uri.removePrefix("/api/history/").toLongOrNull() ?: -1); ok()
+            }
+
+            uri == "/api/downloads" && m == Method.GET -> json(Response.Status.OK, Store.downloads())
+            uri.startsWith("/api/downloads/") && m == Method.DELETE -> {
+                val id = uri.removePrefix("/api/downloads/").toLongOrNull() ?: -1
+                val d = Store.getDownload(id)
+                var fileDeleted = false
+                if (d != null && s.parameters["file"]?.firstOrNull() == "1") fileDeleted = Saver.delete(d.optString("uri"))
+                Store.deleteDownload(id)
+                json(Response.Status.OK, JSONObject().put("ok", true).put("file_deleted", fileDeleted))
             }
 
             uri == "/api/settings" && m == Method.GET -> json(Response.Status.OK, settings())
@@ -77,18 +93,28 @@ class LocalServer(private val ctx: Context, port: Int) : NanoHTTPD("127.0.0.1", 
             }
             if (saved.isEmpty()) return error(400, "Image file dao (jpg/png/webp)")
             val extra = s.parameters["text"]?.firstOrNull() ?: ""
-            return json(Response.Status.OK, JSONObject().put("job", Jobs.start("image", "", saved, extra)))
+            return job(Jobs.startList("image", "", saved, extra))
         }
         val d = readJson(s)
+        val mode = d.optString("mode").ifBlank { "list" }
         val url = d.optString("url").trim()
         val text = d.optString("text").trim()
+        val found = if (url.isNotEmpty()) Fetcher.findUrl(url) ?: return error(400, "Valid link dao (https://...)") else null
         return when {
-            url.isNotEmpty() -> Fetcher.findUrl(url)?.let { json(Response.Status.OK, JSONObject().put("job", Jobs.start("url", it))) }
-                ?: error(400, "Valid link dao (https://...)")
-            text.isNotEmpty() -> json(Response.Status.OK, JSONObject().put("job", Jobs.start("text", text)))
+            mode == "formats" && found != null -> job(Jobs.startFormats(found))
+            mode == "download" && found != null -> {
+                val format = d.optString("format")
+                val kind = d.optString("kind").ifBlank { "video" }
+                if (format.isBlank() || kind !in listOf("video", "audio")) return error(400, "Quality select koro")
+                job(Jobs.startDownload(found, format, kind, d.optString("label").take(20), d.optString("title").take(120)))
+            }
+            found != null -> job(Jobs.startList("url", found))
+            text.isNotEmpty() -> job(Jobs.startList("text", text))
             else -> error(400, "Link, text ba image dao")
         }
     }
+
+    private fun job(id: String) = json(Response.Status.OK, JSONObject().put("job", id))
 
     private fun settings(): JSONObject {
         val key = Store.get("gemini_key")

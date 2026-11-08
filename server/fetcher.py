@@ -22,6 +22,10 @@ class FetchError(Exception):
     pass
 
 
+class Cancelled(Exception):
+    pass
+
+
 def find_url(text):
     m = URL_RE.search(text or "")
     return m.group(0).rstrip(").,") if m else None
@@ -83,17 +87,123 @@ def _caption(info):
     return "\n".join(out)[:6000]
 
 
-def _ydl_base(progress=None):
+def _ydl_base(prog=None):
     # User-Agent dei na: yt-dlp nijer desktop UA dey, FB extractor sei page e kaj kore
-    opts = {"quiet": True, "no_warnings": True, "noplaylist": False, "socket_timeout": 30, **_cookie_opts()}
-    if progress:
+    opts = {"quiet": True, "no_warnings": True, "noprogress": True, "noplaylist": False, "socket_timeout": 30,
+            **_cookie_opts()}
+    if prog:
         def hook(d):
             if d.get("status") == "downloading":
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
-                if total:
-                    progress(f"Downloading {d.get('downloaded_bytes', 0) * 100 // total}%")
+                done = d.get("downloaded_bytes") or 0
+                # prog() cancel hole yt_dlp.utils.DownloadCancelled raise kore -> download theme jay
+                prog({"pct": round(done * 100 / total, 1) if total else None, "done": done,
+                      "total": total or None, "speed": d.get("speed"), "eta": d.get("eta")})
         opts["progress_hooks"] = [hook]
     return opts
+
+
+def _extract(urls):
+    """Prothom je URL e info pawa jay. Return (info, url, err)."""
+    err = ""
+    for u in dict.fromkeys(urls):
+        try:
+            with yt_dlp.YoutubeDL(_ydl_base()) as y:
+                return y.extract_info(u, download=False), u, ""
+        except yt_dlp.utils.DownloadError as e:
+            err = _short_err(e)
+    return None, urls[0], err
+
+
+def _hint():
+    return LOGIN_HINT if not config.COOKIES.exists() else " Cookies expire hoye thakte pare, notun kore dao."
+
+
+def _size(f, duration):
+    if not f:
+        return None
+    s = f.get("filesize") or f.get("filesize_approx")
+    if not s and f.get("tbr") and duration:
+        s = f["tbr"] * 1000 / 8 * duration
+    return int(s) if s else None
+
+
+def formats(url, step=lambda s: None):
+    """Download er jonno quality option: [{label, kind, format, size}] (Snaptube er moto)."""
+    step("Link check hocche")
+    original = url
+    url = resolve_url(url)
+    step("Video info ana hocche")
+    info, url, err = _extract([url, original])
+    if info is None:
+        raise FetchError("Video info pawa gelo na." + _hint() + " (" + err + ")")
+    first = next((e for e in (info.get("entries") or [info]) if e), info)
+    duration = first.get("duration") or 0
+    fmts = first.get("formats") or [first]
+    audio = [f for f in fmts if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")]
+    best_audio = max(audio, key=lambda f: f.get("abr") or f.get("tbr") or 0, default=None)
+    asize = _size(best_audio, duration)
+    by_p = {}
+    for f in fmts:
+        if f.get("vcodec") == "none" or not f.get("format_id"):
+            continue
+        w, h = f.get("width"), f.get("height")
+        if not h:
+            continue
+        p = min(w, h) if w else h            # vertical reel (1080x1920) = 1080p
+        cur = by_p.get(p)
+        if not cur or (f.get("tbr") or 0) > (cur.get("tbr") or 0):
+            by_p[p] = f
+    options = []
+    for p in sorted(by_p, reverse=True):
+        f = by_p[p]
+        video_only = f.get("acodec") == "none"
+        size = _size(f, duration)
+        if size and video_only and asize:
+            size += asize
+        fid = f["format_id"]
+        options.append({"label": f"{p}p", "kind": "video", "size": size, "ext": "mp4",
+                        "format": f"{fid}+bestaudio/{fid}" if video_only else fid})
+    if not options:
+        options.append({"label": "Best video", "kind": "video", "size": _size(first, duration), "ext": "mp4",
+                        "format": "bv*+ba/b"})
+    if best_audio or any(f.get("acodec") != "none" for f in fmts):   # acodec na thakle audio ache dhori
+        options.append({"label": "MP3", "kind": "audio", "size": asize, "ext": "mp3", "format": "ba/b"})
+    return {"url": first.get("webpage_url") or url, "title": first.get("title") or info.get("title") or "Video",
+            "thumbnail": first.get("thumbnail") or info.get("thumbnail") or "", "duration": duration,
+            "uploader": first.get("uploader") or "", "options": options}
+
+
+FORMAT_OK = re.compile(r"^[\w+\-/\[\]<>=.*:]{1,120}$")
+
+
+def download(url, fmt, kind, outdir, step=lambda s: None, prog=None):
+    """Select kora quality te download. Return final file Path."""
+    if not FORMAT_OK.match(fmt or ""):
+        raise FetchError("Bhul format")
+    outdir = Path(outdir)
+    opts = {**_ydl_base(prog), "format": fmt, "playlist_items": "1", "merge_output_format": "mp4",
+            "outtmpl": str(outdir / "%(title).70B [%(id)s].%(ext)s"), "windowsfilenames": True}
+    if kind == "audio":
+        opts["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "0"}]
+    step("Download hocche")
+    try:
+        with yt_dlp.YoutubeDL(opts) as y:
+            info = y.extract_info(url, download=True)
+    except yt_dlp.utils.DownloadCancelled:
+        raise Cancelled()
+    except yt_dlp.utils.DownloadError as e:
+        if "DownloadCancelled" in str(e):
+            raise Cancelled()
+        raise FetchError("Download fail." + _hint() + " (" + _short_err(e) + ")")
+    first = next((e for e in (info.get("entries") or [info]) if e), info)
+    paths = [Path(d["filepath"]) for d in first.get("requested_downloads") or [] if d.get("filepath")]
+    paths = [p for p in paths if p.exists()] or sorted(
+        (p for p in outdir.iterdir() if p.is_file() and p.suffix not in (".part", ".ytdl")),
+        key=lambda p: p.stat().st_mtime)
+    if not paths:
+        raise FetchError("Download hoy nai")
+    return paths[-1], first.get("title") or "Video"
 
 
 def _og_fallback(url, workdir):
@@ -127,25 +237,16 @@ def _og_fallback(url, workdir):
     return None
 
 
-def fetch(url, workdir, progress=lambda s: None):
-    """Return {kind: video|image|text, paths, caption, title}."""
+def fetch(url, workdir, progress=lambda s: None, prog=None):
+    """List er jonno media: Return {kind: video|image|text, paths, caption, title}."""
     workdir = Path(workdir)
     progress("Link check hocche")
     original = url
     url = resolve_url(url)
     video_link = is_video_url(original) or is_video_url(url)
     progress("Post info ana hocche")
-    info, err = None, ""
-    for u in dict.fromkeys([url, original]):  # resolved age, na hole original
-        try:
-            with yt_dlp.YoutubeDL(_ydl_base()) as y:
-                info = y.extract_info(u, download=False)
-            url = u
-            break
-        except yt_dlp.utils.DownloadError as e:
-            err = _short_err(e)
-
-    hint = LOGIN_HINT if not config.COOKIES.exists() else " Cookies expire hoye thakte pare, notun kore dao."
+    info, url, err = _extract([url, original])  # resolved age, na hole original
+    hint = _hint()
     if info is None:
         if video_link:  # video link e thumbnail porle bhul list ashe, tai clear error
             raise FetchError("Video download hoy nai." + hint + " (" + err + ")")
@@ -167,13 +268,17 @@ def fetch(url, workdir, progress=lambda s: None):
     long_video = duration and duration > float(config.get("MAX_VIDEO_MIN")) * 60
     fmt = "ba/b" if (long_video or not has_video) else \
         "b[height<=360]/bv*[height<=360]+ba/b[height<=480]/wv*+ba/w/b"
-    opts = {**_ydl_base(progress), "format": fmt, "outtmpl": str(workdir / "media_%(autonumber)s.%(ext)s"),
+    opts = {**_ydl_base(prog), "format": fmt, "outtmpl": str(workdir / "media_%(autonumber)s.%(ext)s"),
             "merge_output_format": "mp4", "playlist_items": "1"}
-    progress("Audio download hocche (long video)" if long_video else "360p download hocche")
+    progress("Audio download hocche (long video)" if long_video else "360p download hocche (AI er jonno)")
     try:
         with yt_dlp.YoutubeDL(opts) as y:
             y.download([first.get("webpage_url") or url])
+    except yt_dlp.utils.DownloadCancelled:
+        raise Cancelled()
     except yt_dlp.utils.DownloadError as e:
+        if "DownloadCancelled" in str(e):
+            raise Cancelled()
         if caption:
             return {"kind": "text", "paths": [], "caption": caption, "title": info.get("title", ""),
                     "warning": "Video download hoy nai (" + _short_err(e)[:120] + "), shudhu caption theke pora."}

@@ -11,7 +11,7 @@ api(){ curl -s -m 30 "$@"; }
 jget(){ python3 -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
 
 # host e chhoto file server; emulator theke 10.0.2.2 = host
-python3 -m http.server 8077 --directory "$HERE" </dev/null >/dev/null 2>&1 &
+python3 "$HERE/serve.py" "$HERE" </dev/null >/dev/null 2>&1 &
 HTTP_PID=$!
 
 adb logcat -c || true
@@ -59,6 +59,34 @@ if [ $fail = 0 ]; then
   else
     echo "::error::video download failed: $(tail -1 "$OUT/steps-local.txt")"; fail=1
   fi
+  post(){ api -H 'content-type: application/json; charset=utf-8' -d "$2" "localhost:$PORT$1"; }
+  wait_job(){ local r; for i in $(seq 1 100); do r=$(api localhost:$PORT/api/jobs/$1); echo "$r" | grep -q '"status":"running"' || break; sleep 2; done; echo "$r"; }
+
+  note "formats (quality list)"
+  J=$(post /api/jobs '{"mode":"formats","url":"http://10.0.2.2:8077/sample.mp4"}' | jget "d['job']")
+  R=$(wait_job $J); echo "$R" > "$OUT/formats.json"
+  FMT=$(echo "$R" | jget "d['result']['options'][0]['format']" 2>/dev/null)
+  if [ -n "$FMT" ]; then note "options: $(echo "$R" | jget "[o['label'] for o in d['result']['options']]")"; else echo "::error::formats failed: $(echo "$R" | jget "d.get('error')")"; fail=1; fi
+
+  note "download -> phone storage"
+  J=$(post /api/jobs "{\"mode\":\"download\",\"url\":\"http://10.0.2.2:8077/sample.mp4\",\"format\":\"$FMT\",\"kind\":\"video\",\"label\":\"Best\",\"title\":\"ListKoro test\"}" | jget "d['job']")
+  R=$(wait_job $J); echo "$R" > "$OUT/download.json"
+  if echo "$R" | grep -q '"status":"done"'; then note "saved: $(echo "$R" | jget "d['result']['uri']+'  '+d['result']['location']+'  '+str(d['result']['size'])")"
+  else echo "::error::download failed: $(echo "$R" | jget "d.get('error')")"; fail=1; fi
+
+  note "download cancel (slow file)"
+  J=$(post /api/jobs '{"mode":"download","url":"http://10.0.2.2:8077/slow/sample.mp4","format":"b","kind":"video","label":"Best","title":"cancel test"}' | jget "d['job']")
+  for i in $(seq 1 30); do r=$(api localhost:$PORT/api/jobs/$J); echo "$r" | grep -q '"pct"' && break; sleep 1; done
+  note "progress: $(echo "$r" | jget "d.get('progress')")"
+  post /api/jobs/$J/cancel '{}' >/dev/null
+  R=$(wait_job $J)
+  if echo "$R" | grep -q '"status":"cancelled"'; then note "cancel OK"; else echo "::error::cancel failed: $(echo "$R" | jget "d['status']+' '+str(d.get('error'))")"; fail=1; fi
+
+  note "downloads list: $(api localhost:$PORT/api/downloads | jget "len(d)")"
+  api -X DELETE localhost:$PORT/api/history >/dev/null
+  H=$(api localhost:$PORT/api/history | jget "len(d)")
+  if [ "$H" = "0" ]; then note "history clear OK"; else echo "::error::history clear failed ($H)"; fail=1; fi
+
   note "job: YouTube (info only, datacenter IP e block hote pare)"
   run_job "https://www.youtube.com/watch?v=jNQXAC9IVRw" youtube || true
 fi

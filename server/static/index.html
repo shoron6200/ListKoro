@@ -19,14 +19,14 @@
 </header>
 
 <main>
-  <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="link" class="active">🔗 Link</button>
-    <button role="tab" data-tab="image">🖼 Poster</button>
-    <button role="tab" data-tab="text">📝 Text</button>
-    <button role="tab" data-tab="history">🕘 History</button>
-  </nav>
-
-  <section class="panel" id="tab-link">
+  <!-- ============ LIST ============ -->
+  <section id="page-list" class="page">
+    <nav class="seg" role="tablist">
+      <button data-sub="link" class="active">🔗 Link</button>
+      <button data-sub="image">🖼 Poster</button>
+      <button data-sub="text">📝 Text</button>
+    </nav>
+    <section class="panel" id="tab-link">
     <label class="lbl" for="urlInput">Facebook / Instagram / YouTube post er link</label>
     <div class="row">
       <input id="urlInput" type="url" inputmode="url" placeholder="https://www.facebook.com/reel/..." autocomplete="off">
@@ -35,8 +35,7 @@
     <p class="hint">Video hole 360p te nambe, AI dekhe/shune list dibe. Photo post hole poster theke porbe.</p>
     <button class="btn primary big" id="goLink">List ber koro</button>
   </section>
-
-  <section class="panel hidden" id="tab-image">
+    <section class="panel hidden" id="tab-image">
     <label class="drop" id="drop">
       <input id="imgInput" type="file" accept="image/*" multiple hidden>
       <span class="drop-ic">＋</span>
@@ -47,26 +46,26 @@
     <textarea id="imgCaption" rows="2" placeholder="Caption thakle ekhane dite paro (optional)"></textarea>
     <button class="btn primary big" id="goImage">List ber koro</button>
   </section>
-
-  <section class="panel hidden" id="tab-text">
+    <section class="panel hidden" id="tab-text">
     <label class="lbl" for="textInput">Post er text / caption paste koro</label>
     <textarea id="textInput" rows="8" placeholder="Top 10 AI tools for video editing: 1. ..."></textarea>
     <button class="btn primary big" id="goText">List ber koro</button>
   </section>
 
-  <section class="panel hidden" id="tab-history">
-    <input id="histSearch" type="search" placeholder="Search: movie / tool er nam…">
-    <div id="histList" class="hist"></div>
-  </section>
+    <section id="job" class="card job hidden" aria-live="polite">
+      <div class="job-head">
+        <div class="spinner" id="jobSpin"></div>
+        <div class="job-title"><b id="jobStep">Shuru hocche…</b><small id="jobTime">0s</small></div>
+        <button class="btn ghost sm danger" id="jobCancel" type="button">✕ Cancel</button>
+      </div>
+      <div class="bar hidden" id="jobBar"><i></i></div>
+      <small class="bar-text hidden" id="jobBarText"></small>
+      <ol class="log" id="jobLog"></ol>
+    </section>
 
-  <section id="status" class="card status hidden" aria-live="polite">
-    <div class="spinner"></div>
-    <div><div id="statusStep">Shuru hocche…</div><small id="statusTime">0s</small></div>
-  </section>
+    <section id="error" class="card error hidden" role="alert"></section>
 
-  <section id="error" class="card error hidden" role="alert"></section>
-
-  <section id="result" class="card hidden">
+    <section id="result" class="card hidden">
     <div class="res-head">
       <div>
         <h2 id="resTitle"></h2>
@@ -75,12 +74,73 @@
       <div class="res-actions">
         <button class="btn ghost sm" id="copyAll">Copy all</button>
         <button class="btn ghost sm" id="shareAll">Share</button>
+        <button class="btn ghost sm hidden" id="resDownload">⬇️ Video</button>
       </div>
     </div>
     <div id="resWarn" class="warn hidden"></div>
     <ol id="resList" class="items"></ol>
   </section>
+  </section>
+
+  <!-- ============ DOWNLOAD ============ -->
+  <section id="page-download" class="page hidden">
+    <div class="panel">
+      <label class="lbl" for="dlUrl">Video er link (Facebook / Instagram / YouTube)</label>
+      <div class="row">
+        <input id="dlUrl" type="url" inputmode="url" placeholder="https://www.facebook.com/reel/..." autocomplete="off">
+        <button class="btn ghost" id="dlPaste" type="button">Paste</button>
+      </div>
+      <button class="btn primary big" id="dlGo">Quality dekho</button>
+    </div>
+
+    <section id="dlStatus" class="card job hidden" aria-live="polite">
+      <div class="job-head">
+        <div class="spinner"></div>
+        <div class="job-title"><b id="dlStep">Info ana hocche…</b><small id="dlTime">0s</small></div>
+        <button class="btn ghost sm danger" id="dlStatusCancel" type="button">✕ Cancel</button>
+      </div>
+    </section>
+
+    <section id="dlFormats" class="card hidden">
+      <div class="fmt-head">
+        <img id="dlThumb" alt="" referrerpolicy="no-referrer">
+        <div><b id="dlTitle"></b><small id="dlMeta"></small></div>
+      </div>
+      <p class="hint">Kon quality te namabe?</p>
+      <div class="fmt-grid" id="dlOptions"></div>
+    </section>
+
+    <div class="sec-head">
+      <h3>Downloads</h3>
+      <button class="link-btn danger" id="dlClear" type="button">Sob list theke muche felo</button>
+    </div>
+    <div id="dlList" class="dl-list"></div>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section id="page-history" class="page hidden">
+    <div class="row">
+      <input id="histSearch" type="search" placeholder="Search: movie / tool er nam…">
+      <button class="btn ghost sm danger" id="histClear" type="button">🗑 Sob delete</button>
+    </div>
+    <div id="histList" class="hist"></div>
+  </section>
 </main>
+
+<nav class="bottom" id="bottomNav">
+  <button data-page="list" class="active"><span>📋</span>List</button>
+  <button data-page="download"><span>⬇️</span>Download</button>
+  <button data-page="history"><span>🕘</span>History</button>
+</nav>
+
+<dialog id="shareDlg">
+  <div class="sheet">
+    <div class="sheet-head"><h2>Ei link diye ki korbo?</h2><button class="icon-btn" id="shareClose" aria-label="Close">✕</button></div>
+    <p class="hint share-url" id="shareUrl"></p>
+    <button class="btn primary big" id="shareList" type="button">📋 List ber koro</button>
+    <button class="btn big" id="shareDl" type="button">⬇️ Video download</button>
+  </div>
+</dialog>
 
 <dialog id="settings">
   <form method="dialog" class="sheet" id="settingsForm">

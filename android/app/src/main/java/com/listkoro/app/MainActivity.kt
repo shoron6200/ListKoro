@@ -53,12 +53,18 @@ class MainActivity : Activity() {
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: WebChromeClient.FileChooserParams): Boolean {
                 fileCb?.onReceiveValue(emptyArray())
                 fileCb = cb
-                val pick = Intent(Intent.ACTION_GET_CONTENT).setType("image/*")
-                    .addCategory(Intent.CATEGORY_OPENABLE)
-                    .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                // <input accept> dekhe: image hole gallery (multi), na hole (cookies.txt) je kono file
+                val accept = params.acceptTypes.orEmpty().joinToString(",").lowercase()
+                val wantsImage = accept.contains("image")
+                val pick = Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE)
+                if (wantsImage) {
+                    pick.setType("image/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                } else {
+                    pick.setType("*/*").putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "text/*", "application/octet-stream"))
+                }
                 return try {
                     @Suppress("DEPRECATION")
-                    startActivityForResult(Intent.createChooser(pick, "Poster / screenshot"), PICK)
+                    startActivityForResult(Intent.createChooser(pick, if (wantsImage) "Poster / screenshot" else "cookies.txt select koro"), PICK)
                     true
                 } catch (_: ActivityNotFoundException) {
                     fileCb = null
@@ -67,6 +73,11 @@ class MainActivity : Activity() {
             }
         }
         if (saved != null) web.restoreState(saved) else load(handleShare(intent))
+        // Android 9 ba niche: download Movies/Music folder e rakhte storage permission
+        if (Build.VERSION.SDK_INT < 29 &&
+            checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 3)
+        }
     }
 
     private fun load(query: String) = web.loadUrl("http://127.0.0.1:${App.port}/$query")
@@ -78,29 +89,33 @@ class MainActivity : Activity() {
         if (q.isNotEmpty()) load(q)
     }
 
-    /** Onno app theke Share kora link/text/image -> job shuru, "?job=id" ferot. */
+    /**
+     * Onno app theke Share: image/text -> list job ("?job=id"); link -> UI jiggesh korbe
+     * List naki Download ("?share=url").
+     */
     private fun handleShare(i: Intent?): String {
         if (i == null) return ""
         val type = i.type ?: ""
-        val job = when (i.action) {
+        var query = ""
+        when (i.action) {
             Intent.ACTION_SEND -> if (type.startsWith("image/")) {
                 streamUri(i)?.let { u -> copyIn(listOf(u)) }?.takeIf { it.isNotEmpty() }
-                    ?.let { Jobs.start("image", "", it, i.getStringExtra(Intent.EXTRA_TEXT) ?: "") }
+                    ?.let { query = "?job=" + Jobs.startList("image", "", it, i.getStringExtra(Intent.EXTRA_TEXT) ?: "") }
             } else {
                 val text = listOfNotNull(i.getStringExtra(Intent.EXTRA_SUBJECT), i.getStringExtra(Intent.EXTRA_TEXT))
                     .joinToString(" ").trim()
-                when {
-                    text.isEmpty() -> null
-                    Fetcher.findUrl(text) != null -> Jobs.start("url", Fetcher.findUrl(text)!!)
-                    else -> Jobs.start("text", text)
+                val url = Fetcher.findUrl(text)
+                query = when {
+                    text.isEmpty() -> ""
+                    url != null -> "?share=" + Uri.encode(url)
+                    else -> "?job=" + Jobs.startList("text", text)
                 }
             }
             Intent.ACTION_SEND_MULTIPLE -> streamUris(i).let { copyIn(it) }.takeIf { it.isNotEmpty() }
-                ?.let { Jobs.start("image", "", it) }
-            else -> null
+                ?.let { query = "?job=" + Jobs.startList("image", "", it) }
         }
         i.action = Intent.ACTION_MAIN // rotate/recreate e abar job na hoy
-        return if (job != null) "?job=$job" else ""
+        return query
     }
 
     @Suppress("DEPRECATION")
@@ -184,5 +199,22 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun version(): String = BuildConfig.VERSION_NAME
+
+        /** Download kora video/mp3 onno app e kholo */
+        @JavascriptInterface
+        fun openFile(uri: String, mime: String) = runOnUiThread {
+            val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(uri), mime.ifBlank { "video/*" })
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            try { startActivity(Intent.createChooser(i, "Open")) }
+            catch (_: Exception) { Toast.makeText(this@MainActivity, "File khola gelo na (muche geche?)", Toast.LENGTH_SHORT).show() }
+        }
+
+        @JavascriptInterface
+        fun shareFile(uri: String, mime: String) = runOnUiThread {
+            val i = Intent(Intent.ACTION_SEND).setType(mime.ifBlank { "video/*" })
+                .putExtra(Intent.EXTRA_STREAM, Uri.parse(uri)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            try { startActivity(Intent.createChooser(i, "Share")) }
+            catch (_: Exception) { Toast.makeText(this@MainActivity, "Share kora gelo na", Toast.LENGTH_SHORT).show() }
+        }
     }
 }

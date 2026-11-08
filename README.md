@@ -10,6 +10,10 @@ Duita version, ekoi UI:
 | 🐍 **Python server** (`server/`) | Flask + yt-dlp + tesseract | Termux / PC (Ollama diye 100% local) |
 
 ## Features
+- ⬇️ **Video download (Snaptube er moto):** link dile 1080p / 720p / 360p / MP3 option size soho dekhay → je ta chao namao. Phone e `Movies/ListKoro` (video) ar `Music/ListKoro` (mp3) te save hoy. Progress, cancel, Open/Share/Delete
+- 📊 Protiti kaj er live step log, download %, speed, baki time ar **Cancel** button
+- 🗑 History te ek tap e "Sob delete"
+- FB theke Share korle jiggesh kore: **List ber koro** naki **Video download**
 - Video/reel link → 360p download → AI dekhe + shune list dey (screen er lekha + mukher kotha + caption)
 - Photo/poster post → poster image theke list
 - Text paste → list
