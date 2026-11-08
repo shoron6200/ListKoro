@@ -15,7 +15,14 @@ object Ocr {
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
     fun lines(bmp: Bitmap): List<String> {
-        val text = Tasks.await(recognizer.process(InputImage.fromBitmap(bmp, 0)), 60, TimeUnit.SECONDS)
+        val text = try {
+            Tasks.await(recognizer.process(InputImage.fromBitmap(bmp, 0)), 60, TimeUnit.SECONDS)
+        } catch (e: java.util.concurrent.ExecutionException) {
+            // Notun phone e Google er OCR model prothom bar download hoy
+            if ((e.cause?.message ?: e.message ?: "").contains("Waiting for", true))
+                throw AiError("Phone er OCR model (Google) ekhono download hocche. 1-2 minute por abar try koro. Gemini mode e eta lage na.")
+            throw e
+        }
         return text.textBlocks.flatMap { b -> b.lines.map { it.text } }
     }
 

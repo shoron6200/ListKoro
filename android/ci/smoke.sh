@@ -53,7 +53,8 @@ if [ $fail = 0 ]; then
   api -H 'content-type: application/json' -d '{"provider":"basic"}' localhost:$PORT/api/settings >/dev/null
   note "job: local mp4 (must download)"
   run_job "http://10.0.2.2:8077/sample.mp4" local
-  if grep -q "AI video dekhche" "$OUT/steps-local.txt"; then
+  # step log e "AI video dekhche" thaka mane download hoyeche (emulator e OCR model na thakle porer step fail korte pare)
+  if jget "any('AI video dekhche' in l['msg'] for l in d.get('log',[]))" < "$OUT/job-local.json" | grep -q True; then
     note "download OK"
     grep -q "^\[local\] done" "$OUT/steps-local.txt" && note "OCR result: $(jget "[x['name'] for x in d['result']['items']]" < "$OUT/job-local.json")"
   else
