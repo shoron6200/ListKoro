@@ -2,12 +2,11 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
+    <!-- server/static/icon.svg er moto: tin line + check -->
     <group android:translateX="27" android:translateY="27" android:scaleX="0.105" android:scaleY="0.105">
-        <path android:fillColor="#1A0F06" android:pathData="M128,136h32a16,16 0 0 1 16,16v32a16,16 0 0 1 -16,16h-32a16,16 0 0 1 -16,-16v-32a16,16 0 0 1 16,-16z" />
-        <path android:fillColor="#1A0F06" android:pathData="M228,148h152a20,20 0 0 1 0,40h-152a20,20 0 0 1 0,-40z" />
-        <path android:fillColor="#1A0F06" android:pathData="M128,224h32a16,16 0 0 1 16,16v32a16,16 0 0 1 -16,16h-32a16,16 0 0 1 -16,-16v-32a16,16 0 0 1 16,-16z" />
-        <path android:fillColor="#1A0F06" android:pathData="M228,236h112a20,20 0 0 1 0,40h-112a20,20 0 0 1 0,-40z" />
-        <path android:fillColor="#1A0F06" android:pathData="M128,312h32a16,16 0 0 1 16,16v32a16,16 0 0 1 -16,16h-32a16,16 0 0 1 -16,-16v-32a16,16 0 0 1 16,-16z" />
-        <path android:fillColor="#1A0F06" android:pathData="M228,324h136a20,20 0 0 1 0,40h-136a20,20 0 0 1 0,-40z" />
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="40" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M136,168h240M136,248h168M136,328h88" />
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="40" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M280,336l44,44 84,-92" />
     </group>
 </vector>

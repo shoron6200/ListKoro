@@ -1,198 +1,513 @@
 <!doctype html>
-<html lang="bn">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F6F5F3" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark light">
 <title>ListKoro</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="preload" href="/static/fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/style.css">
+<script>
+// Theme age thik kori, jate flash na hoy
+(function(){var t="system";try{t=localStorage.getItem("theme")||"system"}catch(e){}
+if(t==="system"&&window.ListKoroApp&&ListKoroApp.isNight){try{t=ListKoroApp.isNight()?"dark":"light"}catch(e){}}
+if(t!=="system")document.documentElement.dataset.theme=t;})();
+</script>
 </head>
 <body>
-<header class="top">
-  <div class="brand"><img src="/static/icon.svg" alt="" width="28" height="28"><span>ListKoro</span></div>
-  <button class="icon-btn" id="openSettings" aria-label="Settings">
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-  </button>
-</header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+<symbol id="i-text" viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+<symbol id="i-paste" viewBox="0 0 24 24"><path d="M11 14h10"/><path d="M16 4h2a2 2 0 0 1 2 2v1.344"/><path d="m17 18 4-4-4-4"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></symbol>
+<symbol id="i-kebab" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+<symbol id="i-music" viewBox="0 0 24 24"><path d="M21 16V3a1 1 0 0 0-1.28-.96l-10 2.917a1 1 0 0 0-.72.96V19"/><circle cx="18" cy="16" r="3"/><circle cx="6" cy="19" r="3"/></symbol>
+<symbol id="i-film" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><path d="M12 20v2"/><path d="M12 2v2"/><path d="M17 20v2"/><path d="M17 2v2"/><path d="M2 12h2"/><path d="M2 17h2"/><path d="M2 7h2"/><path d="M20 12h2"/><path d="M20 17h2"/><path d="M20 7h2"/><path d="M7 20v2"/><path d="M7 2v2"/><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="m15 13-3 3-3-3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></symbol>
+<symbol id="i-bug" viewBox="0 0 24 24"><path d="M12 20v-9"/><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z"/><path d="M14.12 3.88 16 2"/><path d="M21 21a4 4 0 0 0-3.81-4"/><path d="M21 5a4 4 0 0 1-3.55 3.97"/><path d="M22 13h-4"/><path d="M3 21a4 4 0 0 1 3.81-4"/><path d="M3 5a4 4 0 0 0 3.55 3.97"/><path d="M6 13H2"/><path d="m8 2 1.88 1.88"/><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+<symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21"/><path d="m14 19.5 3-3 3 3"/><path d="M17 22v-5.5"/><circle cx="9" cy="9" r="2"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></symbol>
+<symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h8"/><path d="M7 12h10"/><path d="M7 16h6"/></symbol>
+<symbol id="i-cookie" viewBox="0 0 24 24"><path d="M11 17h.01"/><path d="M11.496 2c.324-.016.558.292.529.615a4 4 0 004.235 4.368.713.713 0 01.758.757 4 4 0 004.366 4.237c.323-.03.63.204.614.527a10 10 0 01-2.915 6.566A1 1 0 114.93 4.918 10 10 0 0111.496 2"/><path d="M12 12h.01"/><path d="M16 16h.01"/><path d="M16 3h.01"/><path d="M21 4h.01"/><path d="M21 8h.01"/><path d="M7 14h.01"/><path d="M9 8h.01"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+<symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></symbol>
+<symbol id="i-monitor" viewBox="0 0 24 24"><path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8"/><path d="M10 19v-3.96 3.15"/><path d="M7 19h5"/><rect width="6" height="10" x="16" y="12" rx="2"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+<symbol id="b-facebook" viewBox="0 0 24 24"><path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z"/></symbol>
+<symbol id="b-instagram" viewBox="0 0 24 24"><path d="M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077"/></symbol>
+<symbol id="b-youtube" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></symbol>
+<symbol id="b-tiktok" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></symbol>
+</svg>
+<!-- ============================== ONBOARDING ============================== -->
+<section class="onboard hidden" id="onboard" aria-label="Welcome">
+  <button class="onboard-skip" id="obSkip" type="button">Skip</button>
+  <div class="ob-track" id="obTrack">
+    <article class="ob-slide">
+      <div class="ob-art ob-posters" aria-hidden="true">
+        <div class="pg">
+          <div class="pc">
+            <div class="poster p-desert"><span class="pt">Salt Horizon</span></div>
+            <div class="poster p-orbit"><span class="pt">Low Orbit</span></div>
+          </div>
+          <div class="pc">
+            <div class="poster p-ridge"><span class="pt">The Long Field</span></div>
+            <div class="poster p-dusk big"><span class="pt">Night Ferry</span><span class="ps">Part two</span></div>
+            <div class="poster p-sea"><span class="pt">Paper Moon</span></div>
+          </div>
+          <div class="pc">
+            <div class="poster p-city"><span class="pt">Glass Hours</span></div>
+            <div class="poster p-forest"><span class="pt">Northwood</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="ob-copy">
+        <h1 class="ob-mark"><img src="/static/icon.svg" alt="" width="56" height="56"><span>List<b>Koro</b></span></h1>
+        <h2>Turn posts into organized lists</h2>
+        <p>Pull movies, series, anime or tools out of a link, a poster or a block of text.</p>
+      </div>
+    </article>
+    <article class="ob-slide">
+      <div class="ob-art ob-preview" aria-hidden="true">
+        <div class="mini-card">
+          <div class="mini-thumb"><span class="poster p-desert"></span><i>2:17</i></div>
+          <b>Salt Horizon, official trailer</b>
+          <ul class="mini-q">
+            <li class="on"><span class="radio"></span>1080p <em>FHD</em><small>48.2 MB</small></li>
+            <li><span class="radio"></span>720p <em>HD</em><small>24.8 MB</small></li>
+            <li><span class="radio"></span>480p<small>12.1 MB</small></li>
+            <li><span class="radio"></span>MP3<small>3.1 MB</small></li>
+          </ul>
+        </div>
+      </div>
+      <div class="ob-copy">
+        <h2>Save the video as well</h2>
+        <p>Download from YouTube, Facebook, Instagram and more, in the quality you pick.</p>
+      </div>
+    </article>
+    <article class="ob-slide">
+      <div class="ob-art ob-preview" aria-hidden="true">
+        <div class="mini-card mini-list">
+          <b>Best movies of 2024</b>
+          <small>From Instagram · 10 items</small>
+          <ol>
+            <li><span class="idx">1</span><span><b>Salt Horizon</b><small>Movie · 2024</small></span></li>
+            <li><span class="idx">2</span><span><b>Low Orbit</b><small>Movie · 2024</small></span></li>
+            <li><span class="idx">3</span><span><b>Glass Hours</b><small>Series · 2024</small></span></li>
+            <li><span class="idx">4</span><span><b>Northwood</b><small>Movie · 2023</small></span></li>
+          </ol>
+        </div>
+      </div>
+      <div class="ob-copy">
+        <h2>Use the AI you prefer</h2>
+        <p>A free Gemini key, Ollama on your own PC, or plain OCR with no AI at all.</p>
+      </div>
+    </article>
+  </div>
+  <div class="ob-foot">
+    <div class="dots" id="obDots"><i class="on"></i><i></i><i></i></div>
+    <button class="btn primary big" id="obNext" type="button"><span>Next</span><svg class="i"><use href="#i-arrow"/></svg></button>
+  </div>
+</section>
 
-<main>
-  <!-- ============ LIST ============ -->
-  <section id="page-list" class="page">
-    <nav class="seg" role="tablist">
-      <button data-sub="link" class="active">🔗 Link</button>
-      <button data-sub="image">🖼 Poster</button>
-      <button data-sub="text">📝 Text</button>
-    </nav>
-    <section class="panel" id="tab-link">
-    <label class="lbl" for="urlInput">Facebook / Instagram / YouTube post er link</label>
-    <div class="row">
-      <input id="urlInput" type="url" inputmode="url" placeholder="https://www.facebook.com/reel/..." autocomplete="off">
-      <button class="btn ghost" id="pasteBtn" type="button">Paste</button>
+<!-- ============================== HOME ============================== -->
+<section class="screen tab" data-screen="home">
+  <header class="home-top">
+    <span class="wordmark">List<b>Koro</b></span>
+    <button class="status-btn" id="homeStatus" type="button" aria-label="System status"><i class="dot"></i><span id="homeStatusText">Checking</span></button>
+  </header>
+  <div class="pad">
+    <p class="lede">Turn links, posters or text into clean, organized lists.</p>
+
+    <div class="notice hidden" id="keyNotice">
+      <svg class="i"><use href="#i-key"/></svg>
+      <div><b>Add an AI key to get started</b><small>Paste a free Gemini key in Settings, or switch to Ollama or Basic OCR.</small></div>
+      <button class="btn sm" id="keyNoticeGo" type="button">Settings</button>
     </div>
-    <p class="hint">Video hole 360p te nambe, AI dekhe/shune list dibe. Photo post hole poster theke porbe.</p>
-    <button class="btn primary big" id="goLink">List ber koro</button>
-  </section>
-    <section class="panel hidden" id="tab-image">
-    <label class="drop" id="drop">
-      <input id="imgInput" type="file" accept="image/*" multiple hidden>
-      <span class="drop-ic">＋</span>
-      <span>Poster / screenshot select koro</span>
-      <small>Ekadhik image o deya jabe</small>
-    </label>
-    <div class="thumbs" id="thumbs"></div>
-    <textarea id="imgCaption" rows="2" placeholder="Caption thakle ekhane dite paro (optional)"></textarea>
-    <button class="btn primary big" id="goImage">List ber koro</button>
-  </section>
-    <section class="panel hidden" id="tab-text">
-    <label class="lbl" for="textInput">Post er text / caption paste koro</label>
-    <textarea id="textInput" rows="8" placeholder="Top 10 AI tools for video editing: 1. ..."></textarea>
-    <button class="btn primary big" id="goText">List ber koro</button>
-  </section>
 
-    <section id="job" class="card job hidden" aria-live="polite">
-      <div class="job-head">
-        <div class="spinner" id="jobSpin"></div>
-        <div class="job-title"><b id="jobStep">Shuru hocche…</b><small id="jobTime">0s</small></div>
-        <button class="btn ghost sm danger" id="jobCancel" type="button">✕ Cancel</button>
-      </div>
-      <div class="bar hidden" id="jobBar"><i></i></div>
-      <small class="bar-text hidden" id="jobBarText"></small>
-      <ol class="log" id="jobLog"></ol>
-    </section>
-
-    <section id="error" class="card error hidden" role="alert"></section>
-
-    <section id="result" class="card hidden">
-    <div class="res-head">
-      <div>
-        <h2 id="resTitle"></h2>
-        <small id="resMeta"></small>
-      </div>
-      <div class="res-actions">
-        <button class="btn ghost sm" id="copyAll">Copy all</button>
-        <button class="btn ghost sm" id="shareAll">Share</button>
-        <button class="btn ghost sm hidden" id="resDownload">⬇️ Video</button>
-      </div>
-    </div>
-    <div id="resWarn" class="warn hidden"></div>
-    <ol id="resList" class="items"></ol>
-  </section>
-  </section>
-
-  <!-- ============ DOWNLOAD ============ -->
-  <section id="page-download" class="page hidden">
-    <div class="panel">
-      <label class="lbl" for="dlUrl">Video er link (Facebook / Instagram / YouTube)</label>
-      <div class="row">
-        <input id="dlUrl" type="url" inputmode="url" placeholder="https://www.facebook.com/reel/..." autocomplete="off">
-        <button class="btn ghost" id="dlPaste" type="button">Paste</button>
-      </div>
-      <button class="btn primary big" id="dlGo">Quality dekho</button>
+    <div class="tiles">
+      <button class="tile" data-push="link" type="button"><svg class="i"><use href="#i-link"/></svg><b>From link</b><small>FB, IG, YouTube</small></button>
+      <button class="tile" data-push="image" type="button"><svg class="i"><use href="#i-image"/></svg><b>From image</b><small>Poster or screenshot</small></button>
+      <button class="tile" data-push="text" type="button"><svg class="i"><use href="#i-text"/></svg><b>From text</b><small>Paste or type</small></button>
+      <button class="tile" data-push="video" type="button"><svg class="i"><use href="#i-download"/></svg><b>Download video</b><small>From supported sites</small></button>
     </div>
 
-    <section id="dlStatus" class="card job hidden" aria-live="polite">
-      <div class="job-head">
-        <div class="spinner"></div>
-        <div class="job-title"><b id="dlStep">Info ana hocche…</b><small id="dlTime">0s</small></div>
-        <button class="btn ghost sm danger" id="dlStatusCancel" type="button">✕ Cancel</button>
-      </div>
-    </section>
-
-    <section id="dlFormats" class="card hidden">
-      <div class="fmt-head">
-        <img id="dlThumb" alt="" referrerpolicy="no-referrer">
-        <div><b id="dlTitle"></b><small id="dlMeta"></small></div>
-      </div>
-      <p class="hint">Kon quality te namabe?</p>
-      <div class="fmt-grid" id="dlOptions"></div>
-    </section>
+    <button class="running hidden" id="homeRunning" type="button">
+      <span class="ring"></span>
+      <span class="running-t"><b>Making your list</b><small id="homeRunningStep">Starting</small></span>
+      <svg class="i"><use href="#i-chev"/></svg>
+    </button>
 
     <div class="sec-head">
-      <h3>Downloads</h3>
-      <button class="link-btn danger" id="dlClear" type="button">Sob list theke muche felo</button>
+      <h2>Recent lists</h2>
+      <button class="link-btn" data-tab="history" type="button">See all</button>
     </div>
-    <div id="dlList" class="dl-list"></div>
-  </section>
+    <div class="rows" id="homeRecent"></div>
+  </div>
+</section>
 
-  <!-- ============ HISTORY ============ -->
-  <section id="page-history" class="page hidden">
-    <div class="row">
-      <input id="histSearch" type="search" placeholder="Search: movie / tool er nam…">
-      <button class="btn ghost sm danger" id="histClear" type="button">🗑 Sob delete</button>
+<!-- ============================== HISTORY ============================== -->
+<section class="screen tab hidden" data-screen="history">
+  <header class="tab-top">
+    <h1>History</h1>
+    <button class="icon-btn" id="histMore" type="button" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+  </header>
+  <div class="pad">
+    <label class="field search">
+      <svg class="i"><use href="#i-search"/></svg>
+      <input id="histSearch" type="search" placeholder="Search history" autocomplete="off">
+    </label>
+    <div class="chips-row" id="histFilter" role="tablist">
+      <button class="chip on" data-f="all" type="button">All</button>
+      <button class="chip" data-f="lists" type="button">Lists</button>
+      <button class="chip" data-f="videos" type="button">Videos</button>
     </div>
-    <div id="histList" class="hist"></div>
-  </section>
-</main>
+    <div id="histList"></div>
+  </div>
+</section>
 
-<nav class="bottom" id="bottomNav">
-  <button data-page="list" class="active"><span>📋</span>List</button>
-  <button data-page="download"><span>⬇️</span>Download</button>
-  <button data-page="history"><span>🕘</span>History</button>
+<!-- ============================== DOWNLOADS ============================== -->
+<section class="screen tab hidden" data-screen="downloads">
+  <header class="tab-top">
+    <h1>Downloads</h1>
+    <button class="icon-btn" id="dlMore" type="button" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+  </header>
+  <div class="pad">
+    <div class="seg" id="dlSeg" role="tablist">
+      <button class="on" data-seg="active" type="button">Active <span id="dlActiveN">0</span></button>
+      <button data-seg="done" type="button">Completed <span id="dlDoneN">0</span></button>
+    </div>
+    <div id="dlList" class="rows"></div>
+    <button class="btn big ghost-cta" data-push="video" type="button"><svg class="i"><use href="#i-plus"/></svg><span>New download</span></button>
+  </div>
+</section>
+
+<!-- ============================== SETTINGS ============================== -->
+<section class="screen tab hidden" data-screen="settings">
+  <header class="tab-top col">
+    <h1>Settings</h1>
+    <p>AI, accounts and app options</p>
+  </header>
+  <form class="pad settings" id="settingsForm" autocomplete="off">
+    <div class="group status-group">
+      <div class="g-row">
+        <svg class="i"><use href="#i-server"/></svg>
+        <span class="g-label">System status</span>
+        <span class="chips" id="sysChips"></span>
+      </div>
+      <p class="g-err hidden" id="ytdlErr"></p>
+    </div>
+
+    <h3 class="g-title">AI provider</h3>
+    <div class="providers" role="radiogroup" aria-label="AI provider">
+      <label class="prov"><input type="radio" name="provider" value="gemini"><svg class="i"><use href="#i-cloud"/></svg><b>Gemini</b><small>Free key, best results</small></label>
+      <label class="prov"><input type="radio" name="provider" value="ollama"><svg class="i"><use href="#i-monitor"/></svg><b>Ollama</b><small>Runs on your PC</small></label>
+      <label class="prov"><input type="radio" name="provider" value="basic"><svg class="i"><use href="#i-scan"/></svg><b>Basic OCR</b><small>Text only, no AI</small></label>
+    </div>
+    <div class="group" data-for="gemini">
+      <label class="g-field">
+        <span class="g-l"><svg class="i"><use href="#i-key"/></svg>Gemini API key
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="g-link">Get a free key<svg class="i"><use href="#i-ext"/></svg></a></span>
+        <input id="sKey" type="password" autocomplete="off" placeholder="AIza…">
+      </label>
+      <label class="g-field">
+        <span class="g-l"><svg class="i"><use href="#i-cpu"/></svg>Model</span>
+        <input id="sModel" placeholder="gemini-flash-latest">
+      </label>
+    </div>
+    <div class="group" data-for="ollama">
+      <label class="g-field"><span class="g-l"><svg class="i"><use href="#i-globe"/></svg>Ollama host</span><input id="sOHost" placeholder="http://localhost:11434"></label>
+      <label class="g-field"><span class="g-l"><svg class="i"><use href="#i-cpu"/></svg>Text model</span><input id="sOModel" placeholder="qwen2.5:7b"></label>
+      <label class="g-field"><span class="g-l"><svg class="i"><use href="#i-image"/></svg>Vision model, for posters (optional)</span><input id="sOVision" placeholder="qwen2.5vl:7b"></label>
+    </div>
+    <div class="group web-only">
+      <label class="g-field"><span class="g-l"><svg class="i"><use href="#i-scan"/></svg>OCR language (tesseract)</span><input id="sLang" placeholder="eng or eng+ben"></label>
+    </div>
+
+    <h3 class="g-title">App</h3>
+    <div class="group">
+      <div class="g-row">
+        <svg class="i"><use href="#i-moon"/></svg>
+        <span class="g-label">Appearance</span>
+        <span class="mini-seg" id="themeSeg">
+          <button type="button" data-theme="system">Auto</button>
+          <button type="button" data-theme="light">Light</button>
+          <button type="button" data-theme="dark">Dark</button>
+        </span>
+      </div>
+      <div class="g-row">
+        <svg class="i"><use href="#i-folder"/></svg>
+        <span class="g-label">Download location<small class="native-only">Movies/ListKoro and Music/ListKoro</small><small class="web-only">The server's downloads folder</small></span>
+      </div>
+      <button class="g-row as-btn" id="setClearHist" type="button">
+        <svg class="i"><use href="#i-trash"/></svg>
+        <span class="g-label">Clear history</span>
+        <svg class="i chev"><use href="#i-chev"/></svg>
+      </button>
+    </div>
+
+    <h3 class="g-title">Private posts</h3>
+    <div class="group">
+      <div class="g-row">
+        <svg class="i"><use href="#i-cookie"/></svg>
+        <span class="g-label">Cookies<small>Needed for private Facebook and Instagram posts</small></span>
+        <span class="pill" id="cookieState">Not added</span>
+      </div>
+      <div class="g-actions">
+        <label class="btn sm">Upload cookies.txt<input id="cookieFile" type="file" accept=".txt,text/plain" hidden></label>
+        <button class="btn sm" id="cookieDel" type="button">Remove</button>
+      </div>
+      <p class="g-hint web-only">Export them from facebook.com with the "Get cookies.txt LOCALLY" browser extension.</p>
+      <div class="native-only">
+        <button class="g-row as-btn" id="loginFb" type="button">
+          <svg class="i brand"><use href="#b-facebook"/></svg>
+          <span class="g-label">Log in to Facebook</span>
+          <svg class="i chev"><use href="#i-chev"/></svg>
+        </button>
+        <button class="g-row as-btn" id="loginIg" type="button">
+          <svg class="i brand"><use href="#b-instagram"/></svg>
+          <span class="g-label">Log in to Instagram</span>
+          <svg class="i chev"><use href="#i-chev"/></svg>
+        </button>
+        <p class="g-hint">Cookies are saved after you log in. Your password is never stored.</p>
+      </div>
+    </div>
+
+    <details class="group adv">
+      <summary class="g-row">
+        <svg class="i"><use href="#i-sliders"/></svg>
+        <span class="g-label">Advanced</span>
+        <svg class="i chev rot"><use href="#i-down"/></svg>
+      </summary>
+      <button class="g-row as-btn" id="copyDebug" type="button">
+        <svg class="i"><use href="#i-bug"/></svg>
+        <span class="g-label">Debug info<small>Copy system and app details for troubleshooting</small></span>
+        <svg class="i chev"><use href="#i-copy"/></svg>
+      </button>
+    </details>
+
+    <h3 class="g-title">About</h3>
+    <div class="group">
+      <div class="g-row">
+        <svg class="i"><use href="#i-info"/></svg>
+        <span class="g-label">ListKoro<small id="appVersion">Web</small></span>
+      </div>
+    </div>
+
+    <button class="btn primary big" id="saveSettings" type="submit"><svg class="i"><use href="#i-check"/></svg><span>Save changes</span></button>
+  </form>
+</section>
+
+<!-- ============================== ADD LINK ============================== -->
+<section class="screen push hidden" data-screen="link">
+  <header class="bar"><button class="icon-btn back" type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button><h1>Add link</h1><span></span></header>
+  <div class="pad">
+    <label class="field">
+      <svg class="i"><use href="#i-link"/></svg>
+      <input id="urlInput" type="url" inputmode="url" placeholder="Paste a post, reel or video link" autocomplete="off">
+      <button class="icon-btn" id="pasteBtn" type="button" aria-label="Paste"><svg class="i"><use href="#i-paste"/></svg></button>
+    </label>
+    <button class="btn primary big" id="goLink" type="button"><span>Continue</span><svg class="i"><use href="#i-arrow"/></svg></button>
+
+    <div class="divider"><span>Supported platforms</span></div>
+    <div class="platforms">
+      <span><i><svg class="i brand"><use href="#b-facebook"/></svg></i>Facebook</span>
+      <span><i><svg class="i brand"><use href="#b-instagram"/></svg></i>Instagram</span>
+      <span><i><svg class="i brand"><use href="#b-youtube"/></svg></i>YouTube</span>
+    </div>
+    <div class="note">
+      <svg class="i"><use href="#i-info"/></svg>
+      <p>Posts, reels, videos and playlists all work. A video is fetched at 360p so the AI can watch and listen to it. A photo post is read from its poster.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== UPLOAD IMAGE ============================== -->
+<section class="screen push hidden" data-screen="image">
+  <header class="bar"><button class="icon-btn back" type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button><h1>Upload image</h1><span></span></header>
+  <div class="pad">
+    <label class="drop" id="drop">
+      <input id="imgInput" type="file" accept="image/*" multiple hidden>
+      <svg class="i xl"><use href="#i-upload"/></svg>
+      <b>Tap to upload</b>
+      <small>Screenshot, poster or image. Up to 10 at once.</small>
+    </label>
+    <div class="thumbs hidden" id="thumbs"></div>
+    <label class="field area">
+      <textarea id="imgCaption" rows="2" placeholder="Caption, if the post had one (optional)"></textarea>
+    </label>
+    <p class="fine">JPG, PNG or WEBP</p>
+    <button class="btn primary big" id="goImage" type="button"><span>Continue</span><svg class="i"><use href="#i-arrow"/></svg></button>
+  </div>
+</section>
+
+<!-- ============================== PASTE TEXT ============================== -->
+<section class="screen push hidden" data-screen="text">
+  <header class="bar"><button class="icon-btn back" type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button><h1>Paste text</h1><span></span></header>
+  <div class="pad">
+    <label class="field area tall">
+      <textarea id="textInput" rows="9" placeholder="Paste a list, a caption or a recommendation"></textarea>
+      <small class="count" id="textCount">0 characters</small>
+    </label>
+    <button class="btn primary big" id="goText" type="button"><span>Continue</span><svg class="i"><use href="#i-arrow"/></svg></button>
+    <h3 class="sub">Try an example</h3>
+    <div class="chips-row wrap" id="examples">
+      <button class="chip" type="button" data-ex="movie">Movie list</button>
+      <button class="chip" type="button" data-ex="series">Series list</button>
+      <button class="chip" type="button" data-ex="tools">AI tools</button>
+      <button class="chip" type="button" data-ex="anime">Anime list</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ANALYZING ============================== -->
+<section class="screen push hidden" data-screen="job">
+  <header class="bar"><button class="icon-btn back" type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button><h1></h1><span></span></header>
+  <div class="pad job" aria-live="polite">
+    <div class="job-mark" id="jobMark">
+      <svg viewBox="0 0 120 120" class="job-ring" aria-hidden="true"><circle cx="60" cy="60" r="54" class="track"/><circle cx="60" cy="60" r="54" class="val" id="jobRing"/></svg>
+      <img src="/static/icon.svg" alt="" width="56" height="56">
+    </div>
+    <h2 id="jobTitle">Reading your content</h2>
+    <p class="job-sub"><span id="jobStep">Starting</span> · <span id="jobTime" class="num">0s</span></p>
+    <div class="job-prog hidden" id="jobProg">
+      <div class="bar-track"><i id="jobBar"></i></div>
+      <small class="num" id="jobBarText"></small>
+    </div>
+    <ol class="steps" id="jobLog"></ol>
+    <div class="job-err hidden" id="jobErr">
+      <svg class="i"><use href="#i-alert"/></svg>
+      <p id="jobErrText"></p>
+    </div>
+    <button class="btn big" id="jobCancel" type="button">Cancel</button>
+    <button class="btn primary big hidden" id="jobRetry" type="button">Try again</button>
+  </div>
+</section>
+
+<!-- ============================== RESULT ============================== -->
+<section class="screen push hidden" data-screen="result">
+  <header class="bar"><button class="icon-btn back" type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button><h1>Extracted list</h1>
+    <button class="icon-btn" id="shareTop" type="button" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button></header>
+  <div class="pad has-dock">
+    <div class="summary">
+      <span class="src-tile" id="resTile"></span>
+      <div><h2 id="resTitle"></h2><small id="resMeta"></small></div>
+    </div>
+    <div class="notice warn hidden" id="resWarn"><svg class="i"><use href="#i-alert"/></svg><div><small id="resWarnText"></small></div></div>
+    <button class="g-row as-btn solo hidden" id="resDownload" type="button">
+      <svg class="i"><use href="#i-download"/></svg><span class="g-label">Download this video</span><svg class="i chev"><use href="#i-chev"/></svg>
+    </button>
+    <h3 class="sub">Items <span class="num muted" id="resCount"></span></h3>
+    <ol id="resList" class="items"></ol>
+  </div>
+  <div class="dock">
+    <button class="btn big" id="copyAll" type="button"><svg class="i"><use href="#i-copy"/></svg><span>Copy list</span></button>
+    <button class="btn primary big" id="shareAll" type="button"><svg class="i"><use href="#i-share"/></svg><span>Share</span></button>
+  </div>
+</section>
+
+<!-- ============================== VIDEO DOWNLOADER ============================== -->
+<section class="screen push hidden" data-screen="video">
+  <header class="bar"><button class="icon-btn back" type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button><h1>Video downloader</h1><span></span></header>
+  <div class="pad">
+    <label class="field">
+      <svg class="i"><use href="#i-link"/></svg>
+      <input id="dlUrl" type="url" inputmode="url" placeholder="Paste a video link" autocomplete="off">
+      <button class="icon-btn" id="dlPaste" type="button" aria-label="Paste"><svg class="i"><use href="#i-paste"/></svg></button>
+    </label>
+    <div class="platforms four">
+      <span><i><svg class="i brand"><use href="#b-youtube"/></svg></i>YouTube</span>
+      <span><i><svg class="i brand"><use href="#b-facebook"/></svg></i>Facebook</span>
+      <span><i><svg class="i brand"><use href="#b-instagram"/></svg></i>Instagram</span>
+      <span><i><svg class="i brand"><use href="#b-tiktok"/></svg></i>TikTok</span>
+    </div>
+    <div class="note">
+      <svg class="i"><use href="#i-bulb"/></svg>
+      <p><b>Quick tip</b>Share a video from the Facebook or Instagram app to ListKoro and pick Download video. No copying needed.</p>
+    </div>
+    <div class="fetching hidden" id="dlStatus">
+      <span class="ring"></span>
+      <span class="running-t"><b id="dlStep">Getting video info</b><small class="num" id="dlTime">0s</small></span>
+      <button class="link-btn" id="dlStatusCancel" type="button">Cancel</button>
+    </div>
+    <div class="notice bad hidden" id="dlErr"><svg class="i"><use href="#i-alert"/></svg><div><b>Couldn't get the video</b><small id="dlErrText"></small></div></div>
+    <button class="btn primary big" id="dlGo" type="button"><span>Fetch video</span><svg class="i"><use href="#i-arrow"/></svg></button>
+  </div>
+</section>
+
+<!-- ============================== QUALITY ============================== -->
+<section class="screen push hidden" data-screen="quality">
+  <header class="bar"><button class="icon-btn back" type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button><h1>Choose quality</h1><span></span></header>
+  <div class="pad has-dock">
+    <div class="vid-card">
+      <div class="vid-thumb"><img id="dlThumb" alt="" referrerpolicy="no-referrer"><svg class="i ph"><use href="#i-film"/></svg><span class="dur num hidden" id="dlDur"></span></div>
+      <b id="dlTitle"></b>
+      <small id="dlMeta"></small>
+    </div>
+    <h3 class="sub">Quality</h3>
+    <div class="qlist" id="dlOptions" role="radiogroup"></div>
+  </div>
+  <div class="dock">
+    <button class="btn primary big" id="dlStart" type="button"><span>Download</span><svg class="i"><use href="#i-download"/></svg></button>
+  </div>
+</section>
+
+<!-- ============================== CHROME ============================== -->
+<nav class="tabbar" id="tabbar" aria-label="Main">
+  <button data-tab="home" class="on" type="button"><svg class="i"><use href="#i-home"/></svg><span>Home</span></button>
+  <button data-tab="history" type="button"><svg class="i"><use href="#i-history"/></svg><span>History</span></button>
+  <button data-tab="downloads" type="button"><svg class="i"><use href="#i-download"/></svg><span>Downloads</span></button>
+  <button data-tab="settings" type="button"><svg class="i"><use href="#i-settings"/></svg><span>Settings</span></button>
 </nav>
 
-<dialog id="shareDlg">
+<dialog id="shareDlg" class="sheet-dlg">
   <div class="sheet">
-    <div class="sheet-head"><h2>Ei link diye ki korbo?</h2><button class="icon-btn" id="shareClose" aria-label="Close">✕</button></div>
-    <p class="hint share-url" id="shareUrl"></p>
-    <button class="btn primary big" id="shareList" type="button">📋 List ber koro</button>
-    <button class="btn big" id="shareDl" type="button">⬇️ Video download</button>
+    <span class="grab" aria-hidden="true"></span>
+    <h2>What should ListKoro do with this link?</h2>
+    <p class="share-url" id="shareUrl"></p>
+    <button class="btn primary big" id="shareList" type="button"><svg class="i"><use href="#i-list"/></svg><span>Make a list</span></button>
+    <button class="btn big" id="shareDl" type="button"><svg class="i"><use href="#i-download"/></svg><span>Download video</span></button>
+    <button class="btn big quiet" id="shareClose" type="button">Not now</button>
   </div>
 </dialog>
 
-<dialog id="settings">
-  <form method="dialog" class="sheet" id="settingsForm">
-    <div class="sheet-head"><h2>Settings</h2><button class="icon-btn" value="cancel" aria-label="Close">✕</button></div>
-    <div class="chips" id="sysChips"></div>
-    <p class="hint err-text hidden" id="ytdlErr"></p>
-
-    <label class="lbl">AI provider</label>
-    <select id="sProvider">
-      <option value="gemini">Gemini (free API, video bujhe, recommended)</option>
-      <option value="ollama">Ollama (100% local, PC te)</option>
-      <option value="basic">Basic OCR (AI chara, shudhu text line)</option>
-    </select>
-
-    <div data-for="gemini">
-      <label class="lbl">Gemini API key <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">free key nao ↗</a></label>
-      <input id="sKey" type="password" autocomplete="off" placeholder="AIza…">
-      <label class="lbl">Model</label>
-      <input id="sModel" placeholder="gemini-flash-latest">
-    </div>
-    <div data-for="ollama">
-      <label class="lbl">Ollama host</label>
-      <input id="sOHost" placeholder="http://localhost:11434">
-      <label class="lbl">Text model</label>
-      <input id="sOModel" placeholder="qwen2.5:7b">
-      <label class="lbl">Vision model (optional, poster er jonno)</label>
-      <input id="sOVision" placeholder="qwen2.5vl:7b">
-    </div>
-    <div class="web-only">
-      <label class="lbl">OCR language (tesseract)</label>
-      <input id="sLang" placeholder="eng  ba  eng+ben">
-    </div>
-
-    <label class="lbl">Cookies (private post er jonno)</label>
-    <div class="row">
-      <span id="cookieState" class="pill">—</span>
-      <label class="btn ghost sm">Upload cookies.txt<input id="cookieFile" type="file" accept=".txt,text/plain" hidden></label>
-      <button class="btn ghost sm" id="cookieDel" type="button">Remove</button>
-    </div>
-    <div class="row native-only">
-      <button class="btn ghost sm" id="loginFb" type="button">Facebook e login</button>
-      <button class="btn ghost sm" id="loginIg" type="button">Instagram e login</button>
-    </div>
-    <p class="hint web-only">PC browser e "Get cookies.txt LOCALLY" extension diye facebook.com e export koro.</p>
-    <p class="hint native-only">App er bhitore login koro, cookies auto save hobe. Password kothao save hoy na.</p>
-
-    <button class="btn primary big" id="saveSettings" value="default">Save</button>
-    <button class="btn ghost sm" id="copyDebug" type="button">Debug info copy</button>
-  </form>
+<dialog id="menuDlg" class="sheet-dlg">
+  <div class="sheet menu" id="menuBody"></div>
 </dialog>
 
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status"></div>
 <script src="/static/app.js"></script>
 </body>
 </html>
