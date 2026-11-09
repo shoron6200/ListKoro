@@ -73,17 +73,17 @@ const STEP_EN = [
   [/^AI poster porche/i, "Reading the poster"], [/^AI text porche/i, "Reading the text"], [/^Downloader abar start korchi/i, "Restarting the downloader"],
   [/^Video pawa jay nai, poster\/image khujchi/i, "No video found, looking for a poster"], [/^yt-dlp update hocche/i, "Updating yt-dlp, one moment"],
   [/^Gemini busy, abar try korchi \((.*)\)/i, "Gemini is busy, retrying ($1)"], [/^Gemini busy, onno model try korchi \((.*)\)/i, "Gemini is busy, trying $1"],
-  [/^Cancel hocche/i, "Cancelling"], [/^Cancel hoyeche/i, "Cancelled"], [/^Cancel kora hoyeche/i, "Cancelled"],
+  [/^Error$/i, "Stopped"], [/^Done ✓?$/i, "Done"], [/^Cancel hocche/i, "Cancelling"], [/^Cancel hoyeche/i, "Cancelled"], [/^Cancel kora hoyeche/i, "Cancelled"],
 ];
 const stepEn = s => { s = String(s||"").replace(/…$/,""); for(const [re,to] of STEP_EN) if(re.test(s)) return s.replace(re, to); return s; };
 
 /* ---------- sources ---------- */
 function platformOf(url){
   const u = String(url||"").toLowerCase();
-  if(/facebook\.com|fb\.watch|fb\.com/.test(u)) return {name:"Facebook", glyph:"b-facebook"};
-  if(/instagram\.com/.test(u)) return {name:"Instagram", glyph:"b-instagram"};
-  if(/youtube\.com|youtu\.be/.test(u)) return {name:"YouTube", glyph:"b-youtube"};
-  if(/tiktok\.com/.test(u)) return {name:"TikTok", glyph:"b-tiktok"};
+  if(/facebook\.com|fb\.watch|fb\.com/.test(u)) return {name:"Facebook", glyph:"c-facebook"};
+  if(/instagram\.com/.test(u)) return {name:"Instagram", glyph:"c-instagram"};
+  if(/youtube\.com|youtu\.be/.test(u)) return {name:"YouTube", glyph:"c-youtube"};
+  if(/tiktok\.com/.test(u)) return {name:"TikTok", glyph:"c-tiktok"};
   return {name:"the web", glyph:"globe"};
 }
 function sourceOf(r){
@@ -91,7 +91,11 @@ function sourceOf(r){
   if(r.source_type==="text") return {label:"From text", glyph:"text"};
   const p = platformOf(r.source); return {label:"From "+p.name, glyph:p.glyph};
 }
-const srcTile = (glyph, cls="") => `<span class="src-tile ${cls}">${icon(glyph, glyph.startsWith("b-")?"brand":"")}</span>`;
+const srcTile = (glyph, cls="") => `<span class="src-tile ${glyph.startsWith("c-")?"has-logo":""} ${cls}">${icon(glyph, glyph.startsWith("c-")?"logo":"")}</span>`;
+// Item er thumbnail slot: type er rong e initials (poster data nai)
+const initials = n => String(n||"?").replace(/[^\p{L}\p{N} ]/gu," ").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase() || "?";
+/* button e loading state: kaj cholar somoy spinner */
+function busy(btn, on){ if(!btn) return; btn.classList.toggle("loading", on); btn.disabled = on; btn.setAttribute("aria-busy", on); }
 const plural = (n, w) => `${n} ${w}${n===1?"":"s"}`;
 
 /* ---------- router: tabs + pushed screens ---------- */
@@ -102,10 +106,14 @@ function show(name, dir){
   $$(".screen").forEach(s=>s.classList.toggle("hidden", s.dataset.screen!==name));
   const el = $(`.screen[data-screen="${name}"]`);
   el.classList.remove("enter","enter-back");
+  el.classList.remove("fade-in");
   if(dir){ void el.offsetWidth; el.classList.add(dir<0 ? "enter-back" : "enter"); }
+  else if(show._ready){ void el.offsetWidth; el.classList.add("fade-in"); }
+  show._ready = true;
+  document.body.dataset.view = name;
   document.body.classList.toggle("pushed", !TABS.includes(name));
   $$("#tabbar button").forEach(b=>b.classList.toggle("on", b.dataset.tab===stack[0]));
-  window.scrollTo(0,0);
+  window.scrollTo(0,0); document.body.classList.remove("scrolled");
   onShow(name);
 }
 function tab(name){ const same = stack.length===1 && cur()===name; stack=[name]; show(name, same?0:0); store.set("tab", name); }
@@ -121,6 +129,7 @@ function onShow(name){
   if(name==="history") loadHistory();
   if(name==="downloads") refreshDownloads();
   if(name==="settings") loadSettings().catch(e=>toast(e.message));
+  if(name==="about") loadAbout();
 }
 document.addEventListener("click", e => {
   const t = e.target.closest("[data-tab],[data-push],.back"); if(!t) return;
@@ -133,7 +142,7 @@ document.addEventListener("click", e => {
 const menuDlg = $("#menuDlg");
 function openMenu(title, items){
   $("#menuBody").innerHTML = (title ? `<p class="menu-title">${esc(title)}</p>` : "") +
-    items.map((it,i)=>`<button type="button" data-mi="${i}" class="${it.danger?"danger":""}">${icon(it.icon)}<span>${esc(it.label)}</span></button>`).join("");
+    items.map((it,i)=>`<button type="button" data-mi="${i}" class="${it.danger?"danger":""}">${icon(it.icon, it.icon.startsWith("c-")?"logo":"")}<span>${esc(it.label)}</span></button>`).join("");
   $("#menuBody").onclick = e => { const b = e.target.closest("[data-mi]"); if(!b) return; menuDlg.close(); items[+b.dataset.mi].fn(); };
   menuDlg.showModal();
 }
@@ -168,27 +177,32 @@ function renderHomeStatus(s){
 let listJob = null, lastJob = null, readyResult = null;
 const goBtns = ["#goLink","#goImage","#goText"];
 
-async function startList(body){
+async function startList(body, btn){
+  busy(btn, true);
   try{
     const opts = body instanceof FormData ? {method:"POST", body} : {method:"POST", headers:JSONH, body:JSON.stringify(body)};
     const {job} = await api("/api/jobs", opts);
+    busy(btn, false);
     watchList(job);
-  }catch(e){ toast(e.message); }
+  }catch(e){ busy(btn, false); toast(e.message); }
 }
 
 function resetJobScreen(){
-  $("#jobTitle").textContent = "Reading your content";
+  $("#jobTitle").textContent = "Analyzing with AI";
+  $("#jobSub").textContent = "Reading your content and pulling out the list";
   $("#jobStep").textContent = "Starting"; $("#jobTime").textContent = "0s";
   $("#jobLog").innerHTML = ""; $("#jobErr").classList.add("hidden");
   $("#jobProg").classList.add("hidden");
-  $("#jobMark").className = "job-mark spin"; $("#jobRing").style.strokeDashoffset = "";
+  $("#jobMark").className = "job-mark run";
   $("#jobCancel").classList.remove("hidden"); $("#jobCancel").disabled = false;
   $("#jobRetry").classList.add("hidden");
 }
 
 function renderJobCard(j){
   const running = j.status==="running";
-  $("#jobTitle").textContent = running ? "Reading your content" : j.status==="done" ? "Your list is ready" : j.status==="cancelled" ? "Cancelled" : "Couldn't make the list";
+  $("#jobTitle").textContent = running ? "Analyzing with AI" : j.status==="done" ? "Your list is ready" : j.status==="cancelled" ? "Cancelled" : "Couldn't make the list";
+  $("#jobSub").textContent = running ? (j.progress ? "Fetching the post so the AI can read it" : "Reading your content and pulling out the list")
+    : j.status==="done" ? "Opening your list" : j.status==="cancelled" ? "Nothing was saved" : "Nothing was saved. Check the message below and try again";
   $("#jobStep").textContent = stepEn(j.step);
   $("#jobTime").textContent = fmtSecs((j.updated && !running ? j.updated : Date.now()/1000) - j.created) || "0s";
   const p = j.progress;
@@ -198,8 +212,7 @@ function renderJobCard(j){
     $("#jobBarText").textContent = [p.pct!=null ? `${p.pct}%` : "", progressText(p)].filter(Boolean).join(" · ");
   }
   const mark = $("#jobMark");
-  mark.className = "job-mark " + (running ? (p && p.pct!=null ? "" : "spin") : j.status==="done" ? "done" : "fail");
-  $("#jobRing").style.strokeDashoffset = running && p && p.pct!=null ? 339.3*(1-Math.min(100,p.pct)/100) : "";
+  mark.className = "job-mark " + (running ? "run" : j.status==="done" ? "done" : "fail");
   // shesh "Done/Error/Cancel" line ta bad, baki gula step
   let log = (j.log || []).slice();
   if(!running && log.length) log.pop();
@@ -259,6 +272,7 @@ function showJobError(msg){
   $("#jobErr").classList.remove("hidden");
   $("#jobErrText").textContent = msg;
   $("#jobTitle").textContent = "Couldn't make the list";
+  $("#jobSub").textContent = "Nothing was saved. Check the message below and try again";
   $("#jobMark").className = "job-mark fail";
   $("#jobCancel").classList.add("hidden");
   $("#jobRetry").classList.remove("hidden");
@@ -289,6 +303,7 @@ function render(r, fromJob){
   $("#resList").innerHTML = r.items.map((it,i)=>`
     <li class="item">
       <span class="idx">${i+1}</span>
+      <span class="mono" style="--c:var(--t-${esc(it.type)})" aria-hidden="true">${esc(initials(it.name))}</span>
       <div class="item-main">
         <b>${esc(it.name)}</b>
         <span class="item-meta"><i class="tdot" style="--c:var(--t-${esc(it.type)})"></i>${esc(TYPE_LABEL[it.type]||it.type)}${it.year?` · ${esc(it.year)}`:""}${it.timestamp?` · at ${esc(it.timestamp)}`:""}</span>
@@ -338,7 +353,7 @@ $("#pasteBtn").onclick = () => pasteInto($("#urlInput"));
 $("#goLink").onclick = () => {
   const v = $("#urlInput").value.trim();
   if(!v) return toast("Paste a link first");
-  startList({url:v});
+  startList({url:v}, $("#goLink"));
 };
 $("#urlInput").onkeydown = e => { if(e.key==="Enter") $("#goLink").click(); };
 $("#imgInput").onchange = e => {
@@ -353,14 +368,14 @@ $("#goImage").onclick = () => {
   const fd = new FormData();
   images.forEach(f=>fd.append("image", f));
   fd.append("text", $("#imgCaption").value);
-  startList(fd);
+  startList(fd, $("#goImage"));
 };
 const syncCount = () => { $("#textCount").textContent = plural($("#textInput").value.length, "character").replace(/^\d+/, n=>Number(n).toLocaleString()); };
 $("#textInput").oninput = syncCount;
 $("#goText").onclick = () => {
   const v = $("#textInput").value.trim();
   if(!v) return toast("Paste some text first");
-  startList({text:v});
+  startList({text:v}, $("#goText"));
 };
 const EXAMPLES = {
   movie:"Films everyone should see at least once:\n1. Spirited Away (2001)\n2. Parasite (2019)\n3. The Grand Budapest Hotel\n4. Mad Max: Fury Road\n5. Pather Panchali (1955)",
@@ -384,7 +399,7 @@ $("#dlGo").onclick = async () => {
   const url = $("#dlUrl").value.trim();
   if(!url) return toast("Paste a video link first");
   $("#dlErr").classList.add("hidden");
-  $("#dlGo").disabled = true;
+  busy($("#dlGo"), true);
   try{
     const {job} = await post("/api/jobs", {mode:"formats", url});
     fmtJob = job;
@@ -401,11 +416,11 @@ $("#dlGo").onclick = async () => {
   }catch(e){ showDlError(e.message); }
   fmtJob = null;
   $("#dlStatus").classList.add("hidden");
-  $("#dlGo").disabled = false;
+  busy($("#dlGo"), false);
 };
 $("#dlStatusCancel").onclick = async () => {
   const job = fmtJob; fmtJob = null;
-  $("#dlStatus").classList.add("hidden"); $("#dlGo").disabled = false;
+  $("#dlStatus").classList.add("hidden"); busy($("#dlGo"), false);
   if(job) post(`/api/jobs/${job}/cancel`).catch(()=>{});
 };
 function showDlError(msg){
@@ -425,6 +440,7 @@ function showFormats(r){
   renderOptions();
   push("quality");
 }
+$("#dlPlay").onclick = () => fmtData && openExternal(fmtData.url);
 function renderOptions(){
   $("#dlOptions").innerHTML = fmtData.options.map((o,i)=>{
     const b = qBadge(o.label);
@@ -436,7 +452,7 @@ $("#dlOptions").onclick = e => { const b = e.target.closest("[data-opt]"); if(!b
 $("#dlStart").onclick = async () => {
   if(!fmtData) return;
   const o = fmtData.options[fmtPick];
-  $("#dlStart").disabled = true;
+  busy($("#dlStart"), true);
   try{
     const {job} = await post("/api/jobs", {mode:"download", url:fmtData.url, format:o.format, kind:o.kind,
       label:o.label, title:fmtData.title});
@@ -445,7 +461,7 @@ $("#dlStart").onclick = async () => {
     toast(`Downloading ${o.label}`);
     dlSeg = "active"; tab("downloads"); pollDownloads();
   }catch(err){ toast(err.message); }
-  $("#dlStart").disabled = false;
+  busy($("#dlStart"), false);
 };
 
 /* ---------- download list (active jobs + saved files) ---------- */
@@ -502,7 +518,7 @@ function renderDownloads(){
       if(j.status==="running") return `
         <div class="row">${dlTile(j)}
           <div class="row-main"><b>${esc(j.title||"Video")}</b>
-            <small>${esc(j.label||"")}${p&&p.total?` · ${fmtBytes(p.total)}`:""} · ${esc(stepEn(j.step))}</small>
+            <small>${esc(j.label||"")}${p&&p.total?` · ${fmtBytes(p.total)}`:""}${/^Download hocche/i.test(j.step||"") ? "" : ` · ${esc(stepEn(j.step))}`}</small>
             <div class="dl-prog"><div class="bar-track ${p&&p.pct!=null?"":"indet"}"><i style="--p:${p&&p.pct!=null?Math.min(100,p.pct)/100:0}"></i></div>
               <small class="num">${p&&p.pct!=null?Math.round(p.pct)+"%":""}</small></div>
           </div>
@@ -636,12 +652,18 @@ function applyTheme(t){
   const sysDark = NATIVE && NATIVE.isNight ? (()=>{ try{ return NATIVE.isNight(); }catch(e){ return true; } })() : matchMedia("(prefers-color-scheme: dark)").matches;
   const eff = t==="system" ? (sysDark ? "dark" : "light") : t;
   document.documentElement.dataset.theme = eff;
-  $$("#themeSeg button").forEach(b=>b.classList.toggle("on", b.dataset.theme===t));
+  $("#themeValue").textContent = {system:"Auto (match the phone)", light:"Light", dark:"Dark"}[t] || "Auto";
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
   $$('meta[name="theme-color"]').forEach(m=>m.setAttribute("content", bg));
   if(NATIVE && NATIVE.setTheme){ try{ NATIVE.setTheme(eff==="light", bg); }catch(e){} }
 }
-$("#themeSeg").onclick = e => { const b = e.target.closest("[data-theme]"); if(!b) return; store.set("theme", b.dataset.theme); applyTheme(b.dataset.theme); };
+const setThemeTo = t => { store.set("theme", t); applyTheme(t); };
+$("#setTheme").onclick = () => { const t = store.get("theme","system"); const mark = k => k===t ? "check" : "moon";
+  openMenu("Appearance", [
+    {icon:t==="system"?"check":"phone", label:"Auto, match the phone", fn:()=>setThemeTo("system")},
+    {icon:t==="light"?"check":"sun", label:"Light", fn:()=>setThemeTo("light")},
+    {icon:t==="dark"?"check":"moon", label:"Dark", fn:()=>setThemeTo("dark")},
+  ]); };
 matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => applyTheme(store.get("theme","system")));
 window.onNativeTheme = () => applyTheme(store.get("theme","system"));
 
@@ -663,7 +685,7 @@ async function loadSettings(){
   $("#sLang").value = s.tesseract_lang;
   $("#cookieState").innerHTML = s.cookies ? `${icon("check")}Added` : "Not added";
   $("#cookieState").className = "pill " + (s.cookies ? "ok" : "");
-  $("#cookieDel").classList.toggle("hidden", !s.cookies);
+  $("#sName").value = store.get("name","");
   $("#ytdlErr").textContent = s.ytdl_error ? "Downloader error: " + s.ytdl_error : "";
   $("#ytdlErr").classList.toggle("hidden", !s.ytdl_error);
   const dlName = (s.downloader_label || "ffmpeg").replace(/ \d[\d.]*$/, "");
@@ -674,7 +696,8 @@ async function loadSettings(){
 }
 $("#settingsForm").onsubmit = async e => {
   e.preventDefault();
-  const btn = $("#saveSettings"); btn.disabled = true;
+  const btn = $("#saveSettings"); busy(btn, true);
+  store.set("name", $("#sName").value.trim()); renderHello();
   try{
     const s = await post("/api/settings", {
       provider:provider(), gemini_key:$("#sKey").value.trim(), gemini_model:$("#sModel").value.trim(),
@@ -684,7 +707,7 @@ $("#settingsForm").onsubmit = async e => {
     if(s && "provider" in s) renderHomeStatus(s);
     loadSettings().catch(()=>{});
   }catch(err){ toast(err.message); }
-  btn.disabled = false;
+  busy(btn, false);
 };
 $("#cookieFile").onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
@@ -693,15 +716,72 @@ $("#cookieFile").onchange = async e => {
   catch(err){ toast(err.message); }
   e.target.value = "";
 };
-$("#loginFb").onclick = () => NATIVE && NATIVE.login("facebook");
-$("#loginIg").onclick = () => NATIVE && NATIVE.login("instagram");
+$("#setCookies").onclick = () => {
+  const has = settingsCache && settingsCache.cookies;
+  openMenu(NATIVE ? "Cookies let ListKoro open private posts. Logging in under Linked accounts saves them for you."
+                  : "Export cookies.txt from facebook.com with the \"Get cookies.txt LOCALLY\" browser extension, then upload it here.", [
+    {icon:"upload", label: has ? "Replace cookies.txt" : "Upload cookies.txt", fn:()=>$("#cookieFile").click()},
+    ...(has ? [{icon:"trash", label:"Remove cookies", danger:true, fn:async ()=>{ await api("/api/cookies",{method:"DELETE"}).catch(err=>toast(err.message)); loadSettings().catch(()=>{}); toast("Cookies removed"); }}] : []),
+  ]);
+};
+$("#setLogin").onclick = () => openMenu("Log in once and ListKoro saves the cookies. Your password is never stored.", [
+  {icon:"c-facebook", label:"Log in to Facebook", fn:()=>NATIVE && NATIVE.login("facebook")},
+  {icon:"c-instagram", label:"Log in to Instagram", fn:()=>NATIVE && NATIVE.login("instagram")},
+]);
+$("#setRecheck").onclick = async () => { await loadSettings().then(()=>toast("Status updated")).catch(e=>toast(e.message)); };
 window.onNativeLogin = () => loadSettings().catch(()=>{});
 $("#copyDebug").onclick = async () => {
   try{ const d = await api("/api/debug"); copy("ListKoro debug\n" + JSON.stringify(d, null, 1)); }
   catch(e){ toast(e.message); }
 };
-$("#cookieDel").onclick = async () => { await api("/api/cookies",{method:"DELETE"}); loadSettings(); toast("Cookies removed"); };
-if(NATIVE && NATIVE.version){ try{ $("#appVersion").textContent = "Version " + NATIVE.version(); }catch(e){} }
+const appVersion = (()=>{ try{ return NATIVE && NATIVE.version ? NATIVE.version() : ""; }catch(e){ return ""; } })();
+$("#appVersion").textContent = appVersion ? "Version " + appVersion : "Web version";
+
+/* Advanced: height animate kore khole/bondho hoy */
+$("#adv summary").onclick = e => {
+  e.preventDefault();
+  const d = $("#adv"), body = d.querySelector(".adv-body");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches || !body.animate;
+  if(still){ d.open = !d.open; return; }
+  if(d.open){
+    d.classList.add("closing");
+    body.animate([{height:body.scrollHeight+"px", opacity:1},{height:"0px", opacity:0}], {duration:200, easing:"cubic-bezier(.2,.7,.2,1)"})
+      .onfinish = () => { d.open = false; d.classList.remove("closing"); };
+  } else {
+    d.open = true;
+    body.animate([{height:"0px", opacity:0},{height:body.scrollHeight+"px", opacity:1}], {duration:240, easing:"cubic-bezier(.2,.7,.2,1)"});
+  }
+};
+
+/* About: shotti info /api/debug theke */
+async function loadAbout(){
+  const row = (ic, label, val) => `<div class="g-row"><svg class="i"><use href="#i-${ic}"/></svg><span class="g-label">${esc(label)}<small>${esc(val)}</small></span></div>`;
+  try{
+    const [d, s] = await Promise.all([api("/api/debug"), settingsCache ? settingsCache : api("/api/settings")]);
+    const prov = PROVIDER_LABEL[s.provider] || s.provider;
+    $("#aboutRows").innerHTML = [
+      row("info", "ListKoro", appVersion ? "Version " + appVersion : "Web version, served by Python " + (d.python || "")),
+      d.device ? row("phone", d.device, "Android " + (d.android || "")) : "",
+      row("download", "yt-dlp", d.ytdl_version ? "Version " + d.ytdl_version : (d.ytdl_error || "Not ready")),
+      row("scan", "Text recognition", s.ocr_label || (s.tesseract ? "Tesseract" : "Tesseract not installed")),
+      row("sparkle", "AI provider", prov + (s.provider==="gemini" ? " · " + s.gemini_model : s.provider==="ollama" ? " · " + s.ollama_model : "")),
+    ].join("");
+  }catch(e){ $("#aboutRows").innerHTML = row("alert", "Couldn't load details", e.message); }
+}
+$("#aboutDebug").onclick = () => $("#copyDebug").click();
+
+/* Home greeting: shudhu nam deya thakle */
+function renderHello(){
+  const n = store.get("name","").trim();
+  $("#homeHello").textContent = n ? `Hey ${n}` : "";
+  $("#homeHello").classList.toggle("hidden", !n);
+}
+
+addEventListener("scroll", () => document.body.classList.toggle("scrolled", scrollY > 8), {passive:true});
+
+/* Keyboard khola thakle tab bar ar dock lukai, jate field dheke na jay */
+document.addEventListener("focusin", e => { if(e.target.matches("input:not([type=radio]):not([type=file]),textarea")) document.body.classList.add("kb"); });
+document.addEventListener("focusout", () => setTimeout(()=>{ if(!document.activeElement || !document.activeElement.matches("input,textarea")) document.body.classList.remove("kb"); }, 60));
 
 /* ---------- onboarding ---------- */
 function startOnboarding(){
@@ -732,6 +812,7 @@ window.onNativeDownloadsChanged = () => refreshDownloads();
 /* ---------- boot ---------- */
 (async function boot(){
   applyTheme(store.get("theme","system"));
+  renderHello();
   const q = new URLSearchParams(location.search);
   const t = store.get("tab","home");
   stack = [TABS.includes(t) && t!=="settings" ? t : "home"];
