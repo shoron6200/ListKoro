@@ -7,9 +7,12 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -33,7 +36,7 @@ class MainActivity : Activity() {
     override fun onCreate(saved: Bundle?) {
         super.onCreate(saved)
         web = WebView(this)
-        web.setBackgroundColor(0xFF0F1115.toInt())
+        web.setBackgroundColor(if (isNight()) 0xFF141416.toInt() else 0xFFF6F5F3.toInt())
         setContentView(web)
         web.settings.apply {
             javaScriptEnabled = true
@@ -78,6 +81,29 @@ class MainActivity : Activity() {
             checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 3)
         }
+    }
+
+    private fun isNight() =
+        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+    /** Web UI er theme onujayi status/navigation bar er rong ar icon. */
+    @Suppress("DEPRECATION")
+    private fun applyBars(light: Boolean, color: Int) {
+        window.statusBarColor = color
+        window.navigationBarColor = color
+        web.setBackgroundColor(color)
+        var f = window.decorView.systemUiVisibility
+        f = if (light) f or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else f and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+        if (Build.VERSION.SDK_INT >= 26) {
+            f = if (light) f or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else f and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+        }
+        window.decorView.systemUiVisibility = f
+    }
+
+    // Phone er dark/light mode bodlale (activity recreate hoy na, configChanges e uiMode ache)
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        web.evaluateJavascript("window.onNativeTheme && window.onNativeTheme()", null)
     }
 
     private fun load(query: String) = web.loadUrl("http://127.0.0.1:${App.port}/$query")
@@ -199,6 +225,16 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun version(): String = BuildConfig.VERSION_NAME
+
+        @JavascriptInterface
+        fun isNight(): Boolean = this@MainActivity.isNight()
+
+        /** UI theme: light = light status bar icons; color = page background (#rrggbb) */
+        @JavascriptInterface
+        fun setTheme(light: Boolean, color: String) = runOnUiThread {
+            val c = try { Color.parseColor(color.trim()) } catch (_: Exception) { if (light) 0xFFF6F5F3.toInt() else 0xFF141416.toInt() }
+            applyBars(light, c)
+        }
 
         /** Download kora video/mp3 onno app e kholo */
         @JavascriptInterface
